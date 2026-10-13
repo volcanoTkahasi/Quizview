@@ -1,0 +1,237 @@
+<!DOCTYPE html><html lang="ja"><head>
+<meta charset="UTF-8">
+<title>チーム戦 表示画面</title>
+<style>
+    @font-face{font-family:'Agency FB';src:url('fonts/AGENCYB.TTF'),local('Agency FB Bold'),local('AgencyFB-Bold');font-weight:100 900;unicode-range:U+0020-007E,U+00A0-00FF,U+2010-2027,U+2030-205E,U+20AC,U+2122,U+2190-2199}
+    :root {
+        --goth: 'Agency FB','BIZ UDPGothic','BIZ UDPゴシック','Yu Gothic','Meiryo',sans-serif;
+        --num: 'Impact','Haettenschweiler','Agency FB','Arial Black',sans-serif;
+    }
+    * { box-sizing:border-box; }
+    html, body { margin:0; height:100vh; overflow:hidden; }
+    body { font-family:var(--goth); font-weight:900; display:flex; flex-direction:column; }
+    #stage { flex:1; display:flex; gap:2.2vw; padding:2.5vh 2.2vw; align-items:stretch; justify-content:center; min-height:0; }
+    .team { flex:1; display:flex; flex-direction:column; position:relative; min-width:0; }
+    .qbar { display:none; padding:1.2vh 2vw; font-size:3.4vh; line-height:1.25; }
+    .qbar.show { display:block; }
+    .qbar .a { margin-left:1.5vw; }
+    .overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:30; pointer-events:none; }
+    .overlay .big { font-family:var(--num); font-size:12vh; letter-spacing:.05em; }
+    .overlay .small { font-size:4vh; }
+    .hover-ctrl { position:absolute; left:0; right:0; bottom:0; display:none; gap:2px; z-index:40; }
+    .cell:hover .hover-ctrl, .eq-main:hover .hover-ctrl { display:flex; }
+    .hover-ctrl button { flex:1; border:none; color:#fff; font-size:2.2vh; font-weight:900; cursor:pointer; padding:.4vh 0; }
+    .hover-ctrl .o { background:rgba(220,40,40,.9); } .hover-ctrl .x { background:rgba(30,90,220,.9); }
+    .cell { position:relative; }
+    .order-badge { position:absolute; top:-3.6vh; left:50%; transform:translateX(-50%); min-width:3.4vh; height:3.4vh; border-radius:2vh; background:#ffd600; color:#111; font-family:var(--num); font-size:2.4vh; display:flex; align-items:center; justify-content:center; z-index:35; padding:0 .6vh; box-shadow:0 0 8px rgba(0,0,0,.4); white-space:nowrap; }
+    .countdown { position:absolute; right:.6vh; top:.4vh; font-family:var(--num); font-size:3vh; color:#d81b60; z-index:35; }
+    .cell.answering { animation:ansglow .5s ease-in-out infinite alternate; z-index:20; }
+    @keyframes ansglow { from { box-shadow:0 0 0 .5vh #ffd600, 0 0 2vh .6vh rgba(255,214,0,.6); } to { box-shadow:0 0 0 .7vh #ffd600, 0 0 4vh 1.4vh rgba(255,214,0,1); } }
+
+    /* ======================= スコアボード ======================= */
+    body.board { background:#fff; color:#000; }
+    body.board .header { background:#002060; color:#fff; display:flex; align-items:center; padding:.6vh 1.6vw; gap:2vw; min-height:9vh; }
+    body.board .h1 { font-size:3vh; line-height:1.1; white-space:pre-line; min-width:12vw; }
+    body.board .h2 { font-size:6vh; flex:1; white-space:nowrap; overflow:hidden; }
+    body.board .h3 { font-size:6vh; }
+    body.board .team { gap:2.4vh; }
+    body.board .tp { border:.5vh solid #000; display:flex; flex-direction:column; }
+    body.board .sub { font-size:4.6vh; padding:.3vh 1vw; min-height:6vh; border-bottom:.3vh solid #000; }
+    body.board .team.right .sub { text-align:right; }
+    body.board .tname { font-size:9vh; text-align:center; padding:.5vh .5vw; white-space:nowrap; overflow:hidden; border-bottom:.5vh double #000; letter-spacing:.02em; }
+    body.board .total { font-family:var(--num); font-size:24vh; line-height:1.05; text-align:center; padding:.5vh 0 1vh; letter-spacing:.02em; }
+    body.board .cells { display:flex; border:.5vh solid #000; }
+    body.board .cell { flex:1; display:flex; flex-direction:column; border-right:.3vh solid #000; background:#fff; }
+    body.board .cell:last-child { border-right:none; }
+    body.board .c-no { font-family:var(--num); font-size:4.4vh; text-align:center; border-bottom:.3vh solid #000; }
+    body.board .c-pt { font-family:var(--num); font-size:9.5vh; text-align:center; line-height:1.15; border-bottom:.3vh solid #000; }
+    body.board .c-x { font-size:4vh; text-align:center; min-height:5.4vh; line-height:5.4vh; letter-spacing:-.1em; }
+    body.board .c-name { font-size:2.2vh; text-align:center; padding:.3vh 0; border-top:.3vh solid #000; white-space:nowrap; overflow:hidden; min-height:3.2vh; }
+    body.board .cell.reach { background:#ffff00; }
+    body.board .cell.locked { background:#0d0d0d; color:#777; }
+    body.board .cell.locked .c-no, body.board .cell.locked .c-pt { border-color:#333; }
+    body.board .qbar { background:#002060; color:#fff; }
+    body.board .qbar .a { color:#ffeb3b; }
+    body.board .ov-win { background:rgba(255,255,255,.55); color:#c00000; }
+    body.board .ov-dq { background:rgba(0,0,0,.75); color:#aaa; }
+    body.board .ov-sus { background:rgba(0,0,0,.6); color:#fff; }
+    /* EQIDEN */
+    body.board .eq-grid { display:grid; grid-template-columns:repeat(5,1fr); border:.5vh solid #000; }
+    body.board .eq-grid .cell { border-right:.3vh solid #000; border-bottom:.3vh solid #000; }
+    body.board .eq-grid .cell:nth-child(5n) { border-right:none; }
+    body.board .eq-sec { font-family:var(--num); font-size:3.4vh; text-align:center; border-bottom:.3vh solid #000; }
+    body.board .eq-nm { font-size:2.6vh; text-align:center; padding:.8vh .2vw; min-height:7vh; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+    body.board .cell.done { background:#d9d9d9; color:#555; }
+    body.board .cell.current { background:#ffff00; }
+    body.board .eq-main { font-family:var(--num); text-align:center; font-size:12vh; line-height:1.1; position:relative; }
+    body.board .eq-info { font-size:4vh; text-align:center; padding:.5vh; }
+
+    /* ======================= ライト ======================= */
+    body.light { background:#e8edf4; color:#7a5212; }
+    body.light .header { display:flex; justify-content:center; align-items:center; gap:2vw; padding:1.2vh 2vw .4vh; color:#7a5212; }
+    body.light .h1, body.light .h3 { font-size:2.6vh; color:#9a7a48; white-space:pre-line; }
+    body.light .h2 { font-size:3.6vh; }
+    body.light .team { align-items:stretch; }
+    body.light .sub { text-align:center; font-size:2.6vh; color:#9a7a48; min-height:3vh; }
+    body.light .total { font-family:'Agency FB','Rajdhani',var(--num); font-weight:700; font-size:18vh; line-height:1; text-align:center; color:#7a5212; letter-spacing:.02em; }
+    body.light .tname { background:#9c7a3a; color:#fff; text-align:center; font-size:3.6vh; padding:.6vh .5vw; margin:1vh 0 3vh; white-space:nowrap; overflow:hidden; }
+    body.light .cells { display:flex; flex-wrap:wrap; justify-content:center; row-gap:4vh; }
+    body.light .cell { width:33.3%; display:flex; flex-direction:column; align-items:center; padding-top:1.4vh; border-radius:1vh; }
+    body.light .dot { width:2.4vh; height:2.4vh; border-radius:50%; color:#fff; font-size:1.5vh; display:flex; align-items:center; justify-content:center; font-family:var(--num); }
+    body.light .c-x { font-size:3.4vh; color:#7a5212; min-height:4vh; line-height:4vh; }
+    body.light .c-pt { font-family:'Agency FB','Rajdhani',var(--num); font-weight:700; font-size:9vh; line-height:1; color:#7a5212; }
+    body.light .c-name { font-size:2.2vh; color:#8b94a3; margin-top:.8vh; white-space:nowrap; max-width:95%; overflow:hidden; }
+    body.light .cell.reach .c-pt { color:#d32f2f; }
+    body.light .cell.locked .lockbox { background:linear-gradient(135deg,#cfd5de,#aab3bf); border-radius:1vh; padding:.4vh 2vw 1vh; display:flex; flex-direction:column; align-items:center; box-shadow:0 .4vh 1vh rgba(0,0,0,.15); }
+    body.light .cell.locked .c-pt, body.light .cell.locked .c-x { color:#6d7684; }
+    body.light .qbar { background:#fff; color:#3a3f4a; border-top:.4vh solid #9c7a3a; }
+    body.light .qbar .a { color:#b8790a; }
+    body.light .ov-win { background:rgba(232,237,244,.6); color:#b8790a; }
+    body.light .ov-dq { background:rgba(120,128,140,.75); color:#fff; }
+    body.light .ov-sus { background:rgba(120,128,140,.55); color:#fff; }
+    body.light .eq-grid { display:grid; grid-template-columns:repeat(5,1fr); row-gap:2vh; }
+    body.light .eq-grid .cell { width:auto; }
+    body.light .eq-sec { font-size:2.2vh; color:#9a7a48; }
+    body.light .eq-nm { font-size:2.4vh; color:#7a5212; text-align:center; min-height:6vh; display:flex; align-items:center; }
+    body.light .cell.current { background:#fff; box-shadow:0 .4vh 1.4vh rgba(156,122,58,.35); }
+    body.light .cell.done { opacity:.45; }
+    body.light .eq-main { font-family:'Agency FB','Rajdhani',var(--num); font-weight:700; font-size:12vh; text-align:center; line-height:1; position:relative; }
+    body.light .eq-info { font-size:3vh; text-align:center; color:#9a7a48; }
+
+    /* 3チーム以上は縮小 */
+    body.many .tname { font-size:5.5vh !important; }
+    body.many .total { font-size:14vh !important; }
+    body.many .c-pt { font-size:6.5vh !important; }
+@font-face{font-family:'BIZ UDPGothic';src:local('BIZ UDPGothic'),local('BIZ UDPゴシック'),local('BIZUDPGothic-Regular'),url('fonts/BIZUDPGothic-Regular.ttf');font-weight:100 500}
+@font-face{font-family:'BIZ UDPGothic';src:local('BIZ UDPGothic Bold'),local('BIZ UDPゴシック Bold'),local('BIZUDPGothic-Bold'),url('fonts/BIZUDPGothic-Bold.ttf');font-weight:600 900}
+/* 英数字はAgency FB、日本語はBIZ UDPゴシック（Agency FBに無い文字は自動でBIZ UDPゴシックになる） */
+html body, html body *, html body .name-area, html body .comment-top-box, html body .comment-top-box *, html body .comment-right, html body .reach-cutin, html body .reach-cutin * { font-family: 'Agency FB', 'BIZ UDPGothic', 'BIZ UDPゴシック', 'Yu Gothic', 'Meiryo', sans-serif !important; }
+</style></head><body class="board">
+<div class="header"><div class="h1" id="h1"></div><div class="h2" id="h2"></div><div class="h3" id="h3"></div></div>
+<div id="stage"></div>
+<div class="qbar" id="qbar"><span id="qtext"></span><span class="a" id="atext"></span></div>
+
+<script src="qrcode.js"></script><script src="mqtt.min.js"></script><script src="remote.js"></script>
+    <script src="team-core.js"></script>
+<script>
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function textOn(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return '#fff';
+    const n = parseInt(m[1], 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#000' : '#fff';
+}
+function judgeSeat(tid, pos, type) {
+    Team.stopBuzz();
+    Team.mutate(s => s.gameState.ruleMode === 'AQL' ? Team.aql(s, tid, pos, type) : Team.eqiden(s, tid, type));
+    update();
+}
+function buzzDeco(key, b) {
+    let h = '';
+    const ord = b.queue.indexOf(key);
+    if (ord >= 0 && Team.readCfg().showOrder !== false) {
+        const d = Team.diffLabel(b, key);
+        h += `<div class="order-badge">${ord + 1}${d && ord > 0 ? ' ' + d : ''}</div>`;
+    }
+    if (b.phase === 'locked' && b.answering === key) h += `<div class="countdown" data-cd="1"></div>`;
+    return h;
+}
+
+function update() {
+    const { players, teams, gameState: gs } = Team.load();
+    const b = Team.readBuzz();
+    const theme = gs.theme === 'light' ? 'light' : 'board';
+    document.body.className = theme + (teams.length > 2 ? ' many' : '');
+    document.getElementById('h1').textContent = gs.title1 || '';
+    document.getElementById('h2').textContent = gs.title2 || '';
+    document.getElementById('h3').textContent = gs.title3 || (gs.questionNum > 1 ? `第${gs.questionNum - 1}問` : '');
+    const qb = document.getElementById('qbar');
+    const showQ = gs.textVisible && gs.qText;
+    qb.classList.toggle('show', !!showQ);
+    document.getElementById('qtext').textContent = showQ ? 'Q. ' + gs.qText : '';
+    document.getElementById('atext').textContent = showQ && gs.aText ? 'A. ' + gs.aText : '';
+
+    const isAQL = gs.ruleMode === 'AQL';
+    const totals = teams.map(t => isAQL ? Team.aqlTotal(t) : t.currentSection);
+    const maxTotal = Math.max(0, ...totals);
+    const stage = document.getElementById('stage');
+    stage.innerHTML = teams.map((t, ti) => {
+        const names = sec => players.filter(p => p.teamId === t.id && p.section === sec).map(p => p.name).join('/');
+        const lead = isAQL && teams.length > 1 && (t.isFinished || (totals[ti] === maxTotal && totals.filter(x => x === maxTotal).length === 1));
+        const side = teams.length === 2 ? (ti === 0 ? 'left' : 'right') : '';
+        let body = '';
+        if (isAQL) {
+            const total = totals[ti];
+            let order = [0, 1, 2, 3, 4];
+            if (theme === 'board' && side === 'left') order = [4, 3, 2, 1, 0];
+            const cells = order.map(i => {
+                const key = Team.seatKey(t.id, i);
+                const locked = t.aql.locked[i];
+                const pt = t.aql.points[i];
+                const reach = !t.isFinished && !locked && (total / pt) * (pt + 1) >= gs.targetScore;
+                const cls = ['cell', locked ? 'locked' : '', reach ? 'reach' : '', (b.phase === 'locked' && b.answering === key) ? 'answering' : ''].join(' ');
+                const xs = '×'.repeat(t.aql.wrongs[i]);
+                const ctrl = (!t.isFinished && !locked) ? `<div class="hover-ctrl"><button class="o" onclick="judgeSeat('${t.id}',${i},'correct')">〇</button><button class="x" onclick="judgeSeat('${t.id}',${i},'wrong')">×</button></div>` : '';
+                if (theme === 'board') {
+                    return `<div class="${cls}">${buzzDeco(key, b)}<div class="c-no">No.${i + 1}</div><div class="c-pt">${pt}</div><div class="c-x">${xs}</div><div class="c-name">${esc(names(i + 1))}</div>${ctrl}</div>`;
+                }
+                const inner = `<div class="c-x">${xs}</div><div class="c-pt">${pt}</div>`;
+                return `<div class="${cls}">${buzzDeco(key, b)}<div class="dot" style="background:${t.color}">${i + 1}</div>${locked ? `<div class="lockbox">${inner}</div>` : inner}<div class="c-name">${esc(names(i + 1))}</div>${ctrl}</div>`;
+            }).join('');
+            if (theme === 'board') {
+                const subBg = t.color, subFg = textOn(t.color);
+                body = `<div class="tp">
+                    <div class="sub" style="background:${subBg};color:${subFg}">${esc(t.sub || '')}</div>
+                    <div class="tname">${esc(t.name)}</div>
+                    <div class="total" style="${lead ? `background:${t.color};color:${textOn(t.color)}` : ''}">${total}</div>
+                </div>
+                <div class="cells">${cells}</div>`;
+            } else {
+                body = `<div class="sub">${esc(t.sub || '')}</div><div class="total">${total}</div><div class="tname">${esc(t.name)}</div><div class="cells">${cells}</div>`;
+            }
+        } else {
+            // EQIDEN
+            const key = Team.seatKey(t.id, -1);
+            const req = Team.REQ_WINS[t.currentSection] || 2;
+            const remain = Math.max(0, req - t.currentWins);
+            let cells = '';
+            for (let i = 1; i <= 10; i++) {
+                const cur = !t.isFinished && !t.isDisqualified && t.currentSection === i;
+                const done = t.isFinished || t.currentSection > i;
+                const cls = ['cell', cur ? 'current' : '', done ? 'done' : '', (cur && b.phase === 'locked' && b.answering === key) ? 'answering' : ''].join(' ');
+                cells += `<div class="${cls}">${cur ? buzzDeco(key, b) : ''}<div class="eq-sec">${i}区</div><div class="eq-nm">${esc(names(i)) || '-'}</div></div>`;
+            }
+            const ctrl = (!t.isFinished && !t.isDisqualified && !(t.suspendCount > 0)) ? `<div class="hover-ctrl"><button class="o" onclick="judgeSeat('${t.id}',-1,'correct')">〇</button><button class="x" onclick="judgeSeat('${t.id}',-1,'wrong')">×</button></div>` : '';
+            const info = t.isFinished ? 'GOAL' : (t.currentSection <= 5 ? `往路　通算× ${t.totalWrong}/4` : '復路　誤答で休み');
+            if (theme === 'board') {
+                body = `<div class="tp">
+                    <div class="sub" style="background:${t.color};color:${textOn(t.color)}">${esc(t.sub || '')}</div>
+                    <div class="tname">${esc(t.name)}</div>
+                    <div class="eq-main">${t.isFinished ? 'GOAL' : t.currentSection + '区'}${ctrl}</div>
+                    <div class="eq-info">${t.isFinished ? '' : `あと${remain}○　`}${info}</div>
+                </div><div class="eq-grid">${cells}</div>`;
+            } else {
+                body = `<div class="sub">${esc(t.sub || '')}</div><div class="eq-main">${t.isFinished ? 'GOAL' : t.currentSection + '区'}${ctrl}</div>
+                    <div class="eq-info">${t.isFinished ? '' : `あと${remain}○　`}${info}</div>
+                    <div class="tname">${esc(t.name)}</div><div class="eq-grid">${cells}</div>`;
+            }
+        }
+        let ov = '';
+        if (t.isDisqualified) ov = `<div class="overlay ov-dq"><div class="big">DQ</div><div class="small">失格</div></div>`;
+        else if (t.isFinished) ov = `<div class="overlay ov-win"><div class="big">WIN</div><div class="small">${t.rank}位</div></div>`;
+        else if (!isAQL && t.suspendCount > 0) ov = `<div class="overlay ov-sus"><div class="small">休み 残り${t.suspendCount}</div></div>`;
+        return `<div class="team ${side}">${body}${ov}</div>`;
+    }).join('') || `<div style="margin:auto;font-size:4vh;opacity:.5">チーム戦の操作画面でチームを追加してください</div>`;
+}
+
+(function tick() {
+    const b = Team.readBuzz();
+    document.querySelectorAll('[data-cd]').forEach(el => {
+        el.textContent = b.timeUp ? 'TIME UP' : b.timerEnd ? Math.max(0, Math.ceil((b.timerEnd - Date.now()) / 1000)) : '';
+    });
+    requestAnimationFrame(tick);
+})();
+window.addEventListener('storage', e => { if (/^(eq_|quiz_buzz_cfg|quiz_csv_list)/.test(e.key || '')) update(); });
+Team.startInput(update);
+Team.startWatchers();
+update();
+</script></body></html>

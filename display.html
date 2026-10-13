@@ -1,0 +1,722 @@
+<!DOCTYPE html><html lang="ja"><head>
+    <meta charset="UTF-8">
+    <title>クイズ表示画面</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Sawarabi+Mincho&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #000000;
+            --panel-line: #2a2a2a;
+            --gold: #ffb020;
+            --teal: #2fae8b;
+            --teal-dark: #0f5c48;
+            --danger: #e0433f;
+            --danger-dark: #7a1512;
+            --circle: #e6393f;
+            --circle-dark: #8f1418;
+            --progress: #e6393f;
+            --progress-dark: #7a1414;
+            --cross: #2f6fed;
+            --cross-dark: #12275c;
+            --text: #f2f4f8;
+            --muted: #8a8f9a;
+            --rank-gray: #4a4f5a;
+        }
+        @font-face{font-family:'Agency FB';src:url('fonts/AGENCYB.TTF'),local('Agency FB Bold'),local('AgencyFB-Bold');font-weight:100 900;unicode-range:U+0020-007E,U+00A0-00FF,U+2010-2027,U+2030-205E,U+20AC,U+2122,U+2190-2199}
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Agency FB', 'Rajdhani', 'Sawarabi Mincho', sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+        .mono { font-family: 'Agency FB', 'Rajdhani', 'Sawarabi Mincho', serif; }
+
+        /* ---- top strip: rule / timer / question number / rentou ---- */
+        .top-strip { height: 92px; flex: 0 0 92px; display: flex; align-items: center; justify-content: space-between; padding: 0 34px; }
+        .strip-pill { font-family: 'Agency FB', 'Rajdhani', sans-serif; font-weight: 700; font-size: 2.8rem; color: var(--gold); display: flex; align-items: center; gap: 16px; text-shadow: 0 0 14px rgba(255,176,32,0.3); }
+        .rule-image { max-height: 64px; margin-right: 10px; }
+        .timer-display { color: var(--teal); letter-spacing: 1px; }
+        #head-num { font-size: 3rem; }
+        @keyframes flash-yellow { 0%, 100% { color: var(--gold); } 50% { color: #fff; } }
+        @keyframes flash-red { 0%, 100% { color: var(--danger); } 50% { color: #fff; } }
+        .flash-yellow { animation: flash-yellow 1s infinite; }
+        .flash-red { animation: flash-red 0.5s infinite; }
+        #rentou-badge { color: var(--danger); font-weight: 700; }
+        #head-num { color: #fff; }
+
+        /* ---- question banner ---- */
+        .qa-banner {
+            margin: 4px 20px 16px 20px; background: #0c0c0c; border: 1px solid #262626; border-radius: 22px;
+            padding: 18px 34px; display: flex; justify-content: space-between; align-items: center; gap: 30px;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.6);
+            /* 固定高さにして問題文の長さで下のプレイヤー配置が動かないようにする。
+               長さに応じてJS側(fitQaText)がフォントサイズを縮めて枠内に収める。 */
+            height: 18vh; min-height: 110px; max-height: 220px; flex: 0 0 auto;
+            overflow: hidden; transition: opacity 0.3s;
+        }
+        .hidden-text { opacity: 0; }
+        .q-display { font-size: 1.5rem; font-weight: 700; color: #fff; text-align: left; line-height: 1.3; flex: 1.4; white-space: pre-wrap; word-break: break-word; }
+        .a-display { font-size: 1.4rem; font-weight: 900; color: var(--gold); text-align: right; flex: 1; white-space: pre-wrap; word-break: break-word; }
+        .a-placeholder { color: #4a4a4a; }
+        #deliberation-text { color: var(--gold); font-size: 2.6rem; font-weight: bold; text-align: center; width: 100%; }
+
+        .screen { display: flex; align-items: flex-end; flex: 1 1 auto; min-height: 0; width: 100vw; padding: 0 16px 110px 16px; gap: 10px; }
+
+        .player-column { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-width: 0; max-width: 190px; margin: 0 auto; height: 100%; }
+
+        /* ---- rank ribbon (background = player's own color, set inline) ---- */
+        .rank-ribbon {
+            font-family: 'Agency FB', 'Rajdhani', sans-serif; font-weight: 800; font-size: 2.8vw; line-height: 1.1; color: #fff;
+            padding: 4px 0; width: 86%; text-align: center; border-radius: 4px 4px 0 0;
+            text-shadow: 1px 1px 4px rgba(0,0,0,0.7), 0 0 3px rgba(0,0,0,0.7);
+            margin-bottom: 0; position: relative; z-index: 3;
+        }
+        .rank-ribbon.rk-out { filter: grayscale(60%); opacity: 0.75; }
+
+        /* ---- name card ---- */
+        .name-card {
+            position: relative; width: 86%; height: 54vh; max-height: 560px; border-radius: 0 0 4px 4px; overflow: hidden;
+            background: #0a0a0a;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12), 0 6px 18px rgba(0,0,0,0.7);
+        }
+        .corner { position: absolute; width: 16px; height: 16px; border: 3px solid rgba(255,255,255,0.85); z-index: 15; }
+        .corner.tl { top: 4px; left: 4px; border-right: none; border-bottom: none; }
+        .corner.tr { top: 4px; right: 4px; border-left: none; border-bottom: none; }
+        .corner.bl { bottom: 4px; left: 4px; border-right: none; border-top: none; }
+        .corner.br { bottom: 4px; right: 4px; border-left: none; border-top: none; }
+        .accent-corner { position: absolute; bottom: 5px; width: 12px; height: 12px; border: 3px solid rgba(255,255,255,0.85); z-index: 21; }
+        .accent-corner.al { left: 6%; border-right: none; border-top: none; }
+        .accent-corner.ar { right: 6%; border-left: none; border-top: none; }
+        .fill-win { position: absolute; bottom: 0; left: 0; width: 50%; background: linear-gradient(180deg, var(--progress) 0%, var(--progress-dark) 100%); transition: height 0.6s cubic-bezier(0.23,1,0.32,1); z-index: 1; }
+        .fill-lose { position: absolute; bottom: 0; right: 0; width: 50%; background: linear-gradient(180deg, var(--cross) 0%, var(--cross-dark) 100%); transition: height 0.6s cubic-bezier(0.23,1,0.32,1); z-index: 1; }
+        /* attacksurvival / freeze / by / hitcombo: single full-width bar instead of the ○|× half split. */
+        .fill-win.full-bar { width: 100%; }
+        /* NY styleは背景バーを赤の単色（グラデーションなし）にする */
+        .fill-win.fill-solid-red { background: var(--circle); }
+
+        .accent-line { position: absolute; bottom: 0; left: 0; width: 100%; height: 6px; z-index: 20; }
+
+        .name-container { position: relative; z-index: 5; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .comment-top-box { position: absolute; top: 8%; width: 100%; display: flex; flex-direction: column; align-items: center; z-index: 10; }
+        .c-line-1 { font-size: 0.9vw; font-weight: 700; color: #fff; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); line-height: 1.3; text-align: center; }
+        .c-line-2 { font-size: 0.85vw; font-weight: 500; color: #cfd8dc; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); line-height: 1.3; text-align: center; }
+        .name-wrapper { display: flex; align-items: flex-start; position: relative; }
+        .name-area { font-family: 'Agency FB', 'Rajdhani', 'Sawarabi Mincho', sans-serif; writing-mode: vertical-rl; font-size: 2.4vw; font-weight: 900; color: #fff; letter-spacing: 0.08em; text-shadow: 1px 1px 3px rgba(0,0,0,0.5); }
+        .comment-right { writing-mode: vertical-rl; font-size: 1vw; font-weight: 500; color: #cfe9e2; margin-left: 0.4vw; }
+        .volcano-icon { position: absolute; top: 3%; left: 4%; font-size: 2.4vw; filter: drop-shadow(0 0 6px var(--danger)); animation: shake 2s infinite; z-index: 40; }
+        @keyframes shake { 0%, 50%, 100% { transform: rotate(0deg) scale(1); } 25% { transform: rotate(-8deg) scale(1.1); } 75% { transform: rotate(8deg) scale(1.1); } }
+
+        /* 連答権デザインのパターン2：バッジ型（絵文字ではなく発光するリボンバッジ） */
+        .combo-badge {
+            position: absolute; top: 3%; left: 4%;
+            background: linear-gradient(180deg, #ff7043, #d32f2f); color: #fff;
+            font-weight: 900; font-size: 1vw; letter-spacing: 0.08em;
+            padding: 2px 10px; border-radius: 999px; z-index: 40;
+            border: 2px solid #fff; white-space: nowrap;
+            animation: combo-badge-glow 1.4s ease-in-out infinite alternate;
+        }
+        @keyframes combo-badge-glow {
+            from { box-shadow: 0 0 6px 2px rgba(255,112,67,0.5); }
+            to   { box-shadow: 0 0 18px 8px rgba(255,112,67,0.95); }
+        }
+        .status-overlay { position: absolute; top: 38%; font-family: 'Agency FB', 'Rajdhani', sans-serif; font-size: 2.6vw; font-weight: 700; padding: 4px 10px; transform: rotate(-12deg); z-index: 30; background: rgba(0,0,0,0.85); border: 3px solid; border-radius: 4px; }
+        .st-lose { color: #cfd3dc; border-color: #cfd3dc; }
+        .st-freeze { color: var(--teal); border-color: var(--teal); font-size: 2.6vw; }
+
+        .is-top-score .name-area { color: #fff; text-shadow: 0 0 6px #00e5ff, 0 0 14px #00b8d4, 1px 1px 2px #000; animation: glow 1.5s ease-in-out infinite alternate; }
+        @keyframes glow { from { filter: brightness(1); } to { filter: brightness(1.35); } }
+
+        /* トップ点滅をカード全体の発光に強化（文字色の明滅だけだと見づらいとの声のため） */
+        .is-top-score .name-card {
+            border: 3px solid #00e5ff;
+            animation: top-card-glow 1.3s ease-in-out infinite alternate;
+        }
+        @keyframes top-card-glow {
+            from { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5), 0 6px 18px rgba(0,0,0,0.55), 0 0 14px 2px rgba(0,229,255,0.5); }
+            to   { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5), 0 6px 18px rgba(0,0,0,0.55), 0 0 40px 12px rgba(0,229,255,0.9); }
+        }
+        .is-top-score .rank-ribbon {
+            animation: top-ribbon-glow 1.3s ease-in-out infinite alternate;
+        }
+        @keyframes top-ribbon-glow {
+            from { box-shadow: 0 0 6px 2px rgba(0,229,255,0.4); }
+            to   { box-shadow: 0 0 20px 8px rgba(0,229,255,0.9); }
+        }
+        .is-loser .name-card { filter: grayscale(90%); opacity: 0.5; }
+        .is-loser .rank-ribbon { opacity: 0.6; }
+
+        /* ---- stat block below the card ---- */
+        .stat-block { width: 86%; text-align: center; padding: 8px 0 6px 0; position: relative; min-height: 8vh; }
+        .stat-number { font-family: 'Agency FB', 'Rajdhani', sans-serif; font-size: 3.4vw; font-weight: 700; color: #fff; line-height: 1; text-shadow: 0 0 8px rgba(255,255,255,0.3); }
+        .stat-number.is-negative { color: var(--cross); }
+        .stat-number.is-combo { color: #ffd600; text-shadow: 0 0 12px rgba(255,214,0,0.7); }
+        .stat-pt-label { font-size: 1.2vw; color: var(--muted); margin-left: 3px; }
+        .dot-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 5px; margin-top: 6px; }
+        .dot { font-family: 'Agency FB', 'Rajdhani', sans-serif; font-weight: 900; font-size: 1.9vw; line-height: 1; color: #4a4f5a; }
+        .dot.filled { color: #e63946; text-shadow: none; }
+        .stat-sub { font-size: 1vw; color: var(--muted); margin-top: 3px; }
+
+        /* ○/× controls sit at the bottom of the card, but stay hidden until the
+           operator's cursor hovers over the column (as requested). Fixed height
+           (not a %) — a % height inside an auto-height parent used to collapse
+           to almost nothing, which is why the buttons looked cut off. */
+        .control-panel { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 86%; height: 7vh; min-height: 44px; display: flex; gap: 6px; opacity: 0; transition: opacity 0.2s; z-index: 50; background: rgba(0,0,0,0.7); border-radius: 8px; }
+        .player-column:hover .control-panel { opacity: 1; }
+        .ctrl-btn { flex: 1; border: none; font-family: 'Agency FB', 'Rajdhani', sans-serif; font-size: 1.8vw; cursor: pointer; color: white; font-weight: 700; border-radius: 8px; }
+        .btn-o { background: rgba(230, 57, 63, 0.85); } .btn-o:hover { background: rgba(230, 57, 63, 1); }
+        .btn-x { background: rgba(47, 111, 237, 0.85); } .btn-x:hover { background: rgba(47, 111, 237, 1); }
+
+        .win-rank-overlay { position: absolute; bottom: 22px; left: 0; width: 100%; text-align: center; font-family: 'Agency FB', 'Rajdhani', sans-serif; font-size: 2.6vw; color: var(--gold); font-weight: 700; text-shadow: 1px 1px 4px rgba(0,0,0,0.6); z-index: 25; }
+
+        .eruption-container { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; height: 100%; pointer-events: none; z-index: 45; }
+        .real-spark { position: absolute; bottom: 10%; left: 50%; width: 8px; height: 8px; background: #fff; border-radius: 50%; box-shadow: 0 0 10px var(--gold), 0 0 20px #ff9800, 0 0 30px #ff5722, 0 0 40px var(--danger); animation: erupt-sparks 1.5s cubic-bezier(0.1, 1, 0.3, 1) forwards; }
+        @keyframes erupt-sparks { 0% { opacity: 1; transform: translate(0, 0) scale(1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(var(--s)); } }
+
+        .full-eruption-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 9999; overflow: hidden; }
+        .full-eruption-container .real-spark { position: absolute; bottom: 0; left: 50%; }
+
+        /* ---- リーチ カットイン演出（画面全体を使う） ---- */
+        .reach-cutin {
+            position: fixed; inset: 0; z-index: 9998; pointer-events: none;
+            overflow: hidden;
+        }
+        .reach-cutin-bg {
+            position: absolute; top: 0; left: -10%; width: 120%; height: 100%;
+            transform: skewX(-8deg) translateX(-110%);
+            transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            opacity: 0.92;
+            box-shadow: 0 0 120px 30px rgba(0,0,0,0.6) inset;
+        }
+        .reach-cutin.show .reach-cutin-bg { transform: skewX(-8deg) translateX(0%); }
+        .reach-cutin-content {
+            position: absolute; inset: 0; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 0.3s ease 0.25s;
+        }
+        .reach-cutin.show .reach-cutin-content { opacity: 1; }
+        .reach-cutin-school {
+            font-size: 2vw; font-weight: 700; color: rgba(255,255,255,0.9);
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.9); margin-bottom: 0.5vh; letter-spacing: 0.1em;
+        }
+        .reach-cutin-name {
+            font-size: 6vw; font-weight: 900; color: #fff; margin-bottom: 1vh;
+            -webkit-text-stroke: 1.5px rgba(0,0,0,0.8); paint-order: stroke fill;
+            text-shadow: 3px 3px 8px rgba(0,0,0,0.9);
+        }
+        .reach-cutin-label {
+            font-size: 8vw; font-weight: 900; color: #fff; letter-spacing: 0.15em;
+            -webkit-text-stroke: 3px rgba(0,0,0,0.9);
+            paint-order: stroke fill;
+            text-shadow: 3px 3px 0 rgba(0,0,0,0.9), 0 0 18px rgba(0,0,0,0.7);
+        }
+        /* 勝ち抜け後はポイント欄に勝ち抜け順を表示 */
+        .stat-number.stat-rank { color: var(--gold); text-shadow: 0 0 12px rgba(255,176,32,0.7); }
+        .stat-sub.stat-rank-sub { color: var(--gold); font-weight: 700; letter-spacing: 0.1em; }
+        .reach-cutin-label.cutin-win { color: #ffd600; }
+        .reach-cutin-label.cutin-lose { color: #cfd8ff; }
+    @font-face{font-family:'BIZ UDPGothic';src:local('BIZ UDPGothic'),local('BIZ UDPゴシック'),local('BIZUDPGothic-Regular'),url('fonts/BIZUDPGothic-Regular.ttf');font-weight:100 500}
+@font-face{font-family:'BIZ UDPGothic';src:local('BIZ UDPGothic Bold'),local('BIZ UDPゴシック Bold'),local('BIZUDPGothic-Bold'),url('fonts/BIZUDPGothic-Bold.ttf');font-weight:600 900}
+/* 英数字はAgency FB、日本語はBIZ UDPゴシック（Agency FBに無い文字は自動でBIZ UDPゴシックになる） */
+html body, html body *, html body .name-area, html body .comment-top-box, html body .comment-top-box *, html body .comment-right, html body .reach-cutin, html body .reach-cutin * { font-family: 'Agency FB', 'BIZ UDPGothic', 'BIZ UDPゴシック', 'Yu Gothic', 'Meiryo', sans-serif !important; }
+</style></head><body>
+    <div class="top-strip">
+        <div class="strip-pill mono">
+            <img id="rule-image" class="rule-image" src="" style="display:none;">
+            <span id="head-rule">---</span>
+            <span id="timer-display" class="timer-display" style="display:none;">05:00</span>
+            <span id="rentou-badge" style="display:none;">🌋連答</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:16px;">
+            <div class="strip-pill mono" id="group-win-count" style="display:none;"></div>
+            <div class="strip-pill mono" id="head-num">1問目</div>
+        </div>
+    </div>
+
+    <div class="qa-banner" id="qa-container">
+        <div id="deliberation-text" style="display:none;">審議中です</div>
+        <div class="q-display" id="head-q">---</div>
+        <div class="a-display" id="head-a">Ans. ---</div>
+    </div>
+
+    <div id="main-screen" class="screen"></div>
+
+    <script src="qrcode.js"></script><script src="mqtt.min.js"></script><script src="remote.js"></script>
+    <script src="quiz-core.js"></script>
+    <script>
+        const RULE_CONFIG = QuizCore.RULE_CONFIG;
+
+        function getOrdinal(n) {
+            if (!n) return '?';
+            const s = ["th", "st", "nd", "rd"];
+            const v = n % 100;
+            return n + (s[(v - 20) % 10] || s[v] || s[0]);
+        }
+
+        // 連答権（volcano）のデザインは2パターンから選べる。setup.html側の
+        // rules.comboIconStyle（'badge' or 未指定=従来の🌋）で切り替える。
+        // 'badge'は得点の黄色着色だけで表現するので、ここでは何も描画しない。
+        function renderComboIcon(rules) {
+            if (rules.comboIconStyle === 'badge') return '';
+            return '<div class="volcano-icon">🌋</div>';
+        }
+
+        // ---- 勝ち抜け/敗退 SE ----
+        // ファイルは display.html と同じフォルダに置いておくこと。
+        const SE_FILES = {
+            win: ['win1.mp3', 'win2.mp3'],
+            lose: ['lose1.mp3', 'lose2.mp3']
+        };
+        // setup.html側の「SEをミュート」チェックボックスと連動（localStorage経由）。
+        function isSeMuted() {
+            return localStorage.getItem('quiz_se_muted') === 'true';
+        }
+        // SE再生中はsetup.html側のBGMを一時停止させたいので、localStorageの
+        // quiz_se_duck_count（同時再生中のSE数）をカウントして知らせる。
+        // 0→1になった瞬間にBGM側が一時停止し、1→0に戻ったら再開する。
+        function duckBgmStart() {
+            const count = parseInt(localStorage.getItem('quiz_se_duck_count') || '0', 10) + 1;
+            localStorage.setItem('quiz_se_duck_count', String(count));
+        }
+        function duckBgmEnd() {
+            const count = Math.max(0, parseInt(localStorage.getItem('quiz_se_duck_count') || '0', 10) - 1);
+            localStorage.setItem('quiz_se_duck_count', String(count));
+        }
+        function playRandomSe(list) {
+            const file = list[Math.floor(Math.random() * list.length)];
+            const audio = new Audio(file);
+            duckBgmStart();
+            let ducked = true;
+            const releaseDuck = () => { if (ducked) { ducked = false; duckBgmEnd(); } };
+            audio.addEventListener('ended', releaseDuck);
+            audio.addEventListener('error', releaseDuck);
+            audio.play().catch(err => { console.warn('SE再生に失敗しました:', file, err); releaseDuck(); });
+        }
+
+        // 問題文/回答文の長さに応じてフォントサイズを縮小し、qa-bannerの枠内に
+        // スクロールなしで収める。（両方まとめて縮小して見た目のバランスを保つ）
+        const QA_MAX_Q_PX = 36;   // 1.5rem相当
+        const QA_MAX_A_PX = 32; // 1.4rem相当
+        const QA_MIN_PX = 13;     // これ以上は縮めない下限
+        function fitQaText() {
+            const container = document.getElementById('qa-container');
+            const qEl = document.getElementById('head-q');
+            const aEl = document.getElementById('head-a');
+            if (!container || !qEl || !aEl) return;
+            if (qEl.style.display === 'none' || aEl.style.display === 'none') return;
+
+            let scale = 1;
+            const minScale = QA_MIN_PX / QA_MAX_Q_PX;
+            qEl.style.fontSize = QA_MAX_Q_PX + 'px';
+            aEl.style.fontSize = QA_MAX_A_PX + 'px';
+
+            let guard = 0;
+            while (container.scrollHeight > container.clientHeight && scale > minScale && guard < 40) {
+                scale -= 0.04;
+                qEl.style.fontSize = (QA_MAX_Q_PX * scale) + 'px';
+                aEl.style.fontSize = (QA_MAX_A_PX * scale) + 'px';
+                guard++;
+            }
+        }
+
+        // Picks black or white text so the rank ribbon stays legible no matter
+        // which color the operator assigned to the player.
+        function readableTextColor(hex) {
+            if (!hex || hex[0] !== '#') return '#fff';
+            let c = hex.substring(1);
+            if (c.length === 3) c = c.split('').map(ch => ch + ch).join('');
+            const r = parseInt(c.substring(0, 2), 16), g = parseInt(c.substring(2, 4), 16), b = parseInt(c.substring(4, 6), 16);
+            if ([r, g, b].some(isNaN)) return '#fff';
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            return luminance > 0.6 ? '#111' : '#fff';
+        }
+
+        function triggerFullScreenEruption() {
+            const container = document.createElement('div');
+            container.className = 'full-eruption-container';
+            document.body.appendChild(container);
+            let particlesHtml = '';
+            for (let i = 0; i < 200; i++) {
+                let dx = (Math.random() - 0.5) * 150;
+                let dy = -50 - Math.random() * 80;
+                let s = 1 + Math.random() * 4;
+                let delay = Math.random() * 0.3;
+                particlesHtml += `<div class="real-spark" style="--dx:${dx}vw; --dy:${dy}vh; --s:${s}; animation-delay:${delay}s;"></div>`;
+            }
+            container.innerHTML = particlesHtml;
+            setTimeout(() => { if (container.parentNode) container.parentNode.removeChild(container); }, 3000);
+        }
+
+        function updateTimerDisplay() {
+            const { rules } = QuizCore.readState();
+            let dispTimer = 0;
+            if (rules.timerRunning) {
+                dispTimer = (rules.timerRemaining || 300) - (Date.now() - (rules.timerLastUpdated || Date.now())) / 1000;
+                if (dispTimer < 0) dispTimer = 0;
+            } else {
+                dispTimer = rules.timerRemaining || 300;
+            }
+            const dispEl = document.getElementById('timer-display');
+            const ruleEl = document.getElementById('head-rule');
+            if (dispEl && ruleEl) {
+                if (rules.ruleType === 'timerace') {
+                    dispEl.style.display = 'inline-block';
+                    if (dispTimer <= 0) {
+                        dispEl.textContent = "Finish";
+                        dispEl.className = "timer-display mono";
+                        dispEl.style.color = "var(--danger)";
+                        if (!window.finishEruptionPlayed) { triggerFullScreenEruption(); window.finishEruptionPlayed = true; }
+                    } else {
+                        window.finishEruptionPlayed = false;
+                        const m = Math.floor(dispTimer / 60);
+                        const s = Math.floor(dispTimer % 60);
+                        dispEl.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+                        dispEl.style.color = "";
+                        if (dispTimer <= 30) dispEl.className = "timer-display mono flash-red";
+                        else if (dispTimer <= 60) dispEl.className = "timer-display mono flash-yellow";
+                        else dispEl.className = "timer-display mono";
+                    }
+                } else {
+                    dispEl.style.display = 'none';
+                }
+            }
+            requestAnimationFrame(updateTimerDisplay);
+        }
+        requestAnimationFrame(updateTimerDisplay);
+
+        // Ranks every stage player 1..N: decided winners first (by clinch order),
+        // then still-playing players (by current standing), then losers last.
+        function computeRanks(pData) {
+            const winners = pData.filter(p => p.isWinner).sort((a, b) => (a.winOrder || 0) - (b.winOrder || 0));
+            const actives = pData.filter(p => !p.isWinner && !p.isLoser);
+            actives.sort((a, b) => {
+                if (b.score !== a.score) return b.score - a.score;
+                if (a.crosses !== b.crosses) return a.crosses - b.crosses;
+                return a._idx - b._idx;
+            });
+            const losers = pData.filter(p => p.isLoser).sort((a, b) => a._idx - b._idx);
+            let n = 0;
+            winners.forEach(p => { p.rank = ++n; });
+            actives.forEach((p, i) => { p.rank = ++n; p._isLiveLeader = (i === 0 && actives.length > 1); });
+            losers.forEach(p => { p.rank = ++n; });
+        }
+
+        // ---- リーチ カットイン演出 ----
+        // 「あと1問正解すれば勝ち抜け」(win reach)、「あと1問誤答で失格」(lose reach)
+        // に新しく入った瞬間に、画面全体を使ったカットインを出す。setup.html側の
+        // rules.reachCutinEnabled（false）でオフにできる。
+        // ページ内メモリだけで前回状態を追跡（複数display画面がある場合は
+        // それぞれ独立して発火するが、演出目的なので問題ない）。
+        let prevReachState = {};
+        let wasGameOver = false, gameOverInit = false;
+        let prevLoseReachState = {};
+        function checkReachCutins(pData, rules, totalCircles) {
+            const newWin = [], newLose = [];
+            pData.forEach(p => {
+                if (p.isWinner || p.isLoser) { prevReachState[p.id] = false; prevLoseReachState[p.id] = false; return; }
+                let isWinReach = false, isLoseReach = false;
+                try {
+                    const reach = QuizCore.getReach(p, rules, totalCircles);
+                    isWinReach = reach.isWinReach;
+                    isLoseReach = reach.isLoseReach;
+                } catch (e) { /* ルール上判定できない場合は無視 */ }
+
+                const wasReach = !!prevReachState[p.id];
+                const wasLoseReach = !!prevLoseReachState[p.id];
+                if (isWinReach && !wasReach) newWin.push(p);
+                else if (isLoseReach && !wasLoseReach) newLose.push(p);
+                prevReachState[p.id] = isWinReach;
+                prevLoseReachState[p.id] = isLoseReach;
+            });
+            if (rules.reachCutinEnabled === false) return;
+            // 同時にリーチになった人はまとめて「〇〇、□□　リーチ」と1回で表示
+            const show = (list, label, bg) => {
+                if (!list.length) return;
+                if (list.length === 1) { const p = list[0]; showReachCutin(p.name, p.color, p.c1, p.c2, label, bg || p.color || '#c0392b'); return; }
+                showReachCutin(list.map(p => p.name).join('、'), list[0].color, '', '', label, bg || '#c0392b');
+            };
+            show(newWin, 'REACH', newWin.length === 1 ? null : '#c0392b');
+            show(newLose, '失格REACH', '#4a0000');
+        }
+        // カットインは重ならないように1つずつ順番に出す
+        const cutinQueue = [];
+        let cutinBusy = false;
+        function showReachCutin(...args) {
+            cutinQueue.push(args);
+            if (!cutinBusy) runNextCutin();
+        }
+        function runNextCutin() {
+            const args = cutinQueue.shift();
+            if (!args) { cutinBusy = false; return; }
+            cutinBusy = true;
+            playCutin(...args);
+            setTimeout(runNextCutin, 2950);
+        }
+        function playCutin(name, color, school, grade, label, bgColor, labelClass) {
+            const el = document.createElement('div');
+            el.className = 'reach-cutin';
+            const schoolLine = [school, grade].filter(Boolean).join(' ');
+            el.innerHTML = `
+                <div class="reach-cutin-bg" style="background:${bgColor || color || '#c0392b'};"></div>
+                <div class="reach-cutin-content">
+                    ${schoolLine ? `<div class="reach-cutin-school">${schoolLine}</div>` : ''}
+                    <div class="reach-cutin-name" style="${String(name).length > 8 ? `font-size:${Math.max(2.6, 48 / String(name).length).toFixed(2)}vw` : ''}">${name}</div>
+                    <div class="reach-cutin-label ${labelClass || ''}">${label || 'REACH'}</div>
+                </div>`;
+            document.body.appendChild(el);
+            requestAnimationFrame(() => el.classList.add('show'));
+            setTimeout(() => {
+                el.classList.remove('show');
+                setTimeout(() => el.remove(), 500);
+            }, 2400);
+        }
+
+        function update() {
+            const { players, rules } = QuizCore.readState();
+            const conf = RULE_CONFIG[rules.ruleType] || RULE_CONFIG['normal'];
+
+            const imgData = localStorage.getItem('quiz_rule_image');
+            const imgEl = document.getElementById('rule-image');
+            if (imgData) { imgEl.src = imgData; imgEl.style.display = 'inline-block'; }
+            else { imgEl.src = ''; imgEl.style.display = 'none'; }
+
+            let ruleNameText = conf.name;
+            const w = rules.winLimit, l = rules.loseLimit;
+            if (rules.ruleType === 'normal') ruleNameText = `${w}〇${l}×`;
+            else if (rules.ruleType === 'ny') ruleNameText = `NY Style (${w}pt)`;
+            else if (rules.ruleType === 'timerace') ruleNameText = `Time Race`;
+            else if (rules.ruleType === 'freeze') ruleNameText = `${w}〇 Freeze`;
+            else if (rules.ruleType === 'updown') ruleNameText = `Up Down (${w}〇${l}×)`;
+            else if (rules.ruleType === 'by') ruleNameText = `by (積${w * w})`;
+            else if (rules.ruleType === 'hitcombo') ruleNameText = `Hit Combo (${w}pt)`;
+            else if (rules.ruleType === 'backstream') ruleNameText = `Backstream (+1/-${l})`;
+            else if (rules.ruleType === 'swedish') ruleNameText = `Swedish (${w}〇${l}×)`;
+            else if (rules.ruleType === 'attacksurvival') ruleNameText = `Attack Survival`;
+            else if (rules.ruleType === 'tripleseven') ruleNameText = `Triple Seven (${l}×失格)`;
+            else if (rules.ruleType === 'divide') ruleNameText = `divide (${w}pt)`;
+            else if (rules.ruleType === 'nxm') ruleNameText = `${w}〇${l}休`;
+            else if (rules.ruleType === 'melonpan') ruleNameText = `メロンパン (LIFE ${w})`;
+            else if (rules.ruleType === 'luckyshot') ruleNameText = `ラッキーショット (${w}pt)`;
+            else if (rules.ruleType === 'kobanzame') ruleNameText = `コバンザメ (${w}pt)`;
+            else if (rules.ruleType === 'runrate') ruleNameText = `ランプレート (${w}〇${l}×)`;
+            if (rules.ruleNameMode === 'custom' && rules.customRuleName) ruleNameText = rules.customRuleName;
+            document.getElementById('head-rule').textContent = ruleNameText;
+
+            let rentouText = "";
+            if (rules.rentouMode === 'new') rentouText = "🌋新連答";
+            if (rules.rentouMode === 'old') rentouText = "🌋旧連答";
+            const rentouBadge = document.getElementById('rentou-badge');
+            rentouBadge.style.display = rentouText ? 'inline-block' : 'none';
+            rentouBadge.textContent = rentouText;
+
+            document.getElementById('head-num').textContent = rules.questionNum + "問目";
+
+            const container = document.getElementById('qa-container');
+            if (rules.isDeliberation) {
+                document.getElementById('deliberation-text').style.display = 'block';
+                document.getElementById('head-q').style.display = 'none';
+                document.getElementById('head-a').style.display = 'none';
+            } else {
+                document.getElementById('deliberation-text').style.display = 'none';
+                document.getElementById('head-q').style.display = 'block';
+                document.getElementById('head-a').style.display = 'block';
+                container.classList.toggle('hidden-text', !!rules.isTextHidden);
+            }
+            document.getElementById('head-q').textContent = rules.qText ? "Q. " + rules.qText : "";
+            const aDiv = document.getElementById('head-a');
+            if (rules.showAnswer) { aDiv.textContent = "Ans. " + (rules.aText || ""); aDiv.classList.remove('a-placeholder'); }
+            else { aDiv.textContent = "Ans. ---"; aDiv.classList.add('a-placeholder'); }
+            fitQaText();
+
+            let stagePlayers = players.filter(pl => pl.pool !== 'waiting');
+            let totalCircles = stagePlayers.reduce((sum, pl) => sum + pl.circles, 0);
+
+            let needsSync = false;
+            let newWinnersThisUpdate = 0;
+            let newLosersThisUpdate = 0;
+            const pData = stagePlayers.map((p, idx) => {
+                const { score, isWinner, isLoser } = QuizCore.getStatus(p, rules, totalCircles);
+                return { ...p, score, isWinner, isLoser, _idx: idx };
+            });
+            computeRanks(pData);
+
+            checkReachCutins(pData, rules, totalCircles);
+            const over = QuizCore.isGameOver(players, rules);
+            if (over && !wasGameOver && gameOverInit) showReachCutin('ゲーム終了', '#b8790a', '', '', 'GAME SET', '#1b1b1b', 'cutin-win');
+            wasGameOver = over; gameOverInit = true;
+
+            // 組の勝ち抜け人数表示（右上）：残り人数 → 残り勝ち抜け枠
+            // 勝ち抜けが確定するたびに、両方の数字が1ずつ減っていく。
+            // rules.groupWinTarget が未設定(0)の場合は表示しない。
+            const groupWinCountEl = document.getElementById('group-win-count');
+            if (rules.groupWinTarget > 0) {
+                const winnersCount = pData.filter(p => p.isWinner).length;
+                const remainingPlayers = Math.max(0, stagePlayers.length - winnersCount);
+                const remainingSlots = Math.max(0, rules.groupWinTarget - winnersCount);
+                groupWinCountEl.textContent = `${remainingPlayers} → ${remainingSlots}`;
+                groupWinCountEl.style.display = '';
+            } else {
+                groupWinCountEl.style.display = 'none';
+            }
+
+            const newWinCut = [], newLoseCut = [];
+            document.getElementById('main-screen').innerHTML = pData.map(p => {
+                let hWin = 0, hLose = 0;
+                if (rules.ruleType === 'by') {
+                    hWin = (p.score / (rules.winLimit * rules.winLimit)) * 100;
+                } else if (rules.ruleType === 'hitcombo' || rules.ruleType === 'swedish' || rules.ruleType === 'tripleseven') {
+                    hWin = (p.score / rules.winLimit) * 100;
+                    if (rules.ruleType === 'swedish') hLose = (p.crosses / rules.loseLimit) * 100;
+                } else if (rules.ruleType === 'backstream') {
+                    if (p.score > 0) hWin = (p.score / rules.winLimit) * 100;
+                    else if (p.score < 0) hLose = (Math.abs(p.score) / rules.loseLimit) * 100;
+                } else if (rules.ruleType === 'attacksurvival' || rules.ruleType === 'melonpan') {
+                    if (p.score > 0) hWin = (p.score / rules.winLimit) * 100;
+                } else if (rules.ruleType === 'luckyshot') {
+                    hWin = (p.score / rules.winLimit) * 100; hLose = ((p.lsDmg || 0) / Math.max(1, rules.loseLimit)) * 100;
+                } else if (rules.ruleType === 'kobanzame') {
+                    hWin = (p.score / rules.winLimit) * 100;
+                } else if (rules.ruleType === 'divide') {
+                    if (p.score >= 0) hWin = (p.score / rules.winLimit) * 100;
+                } else {
+                    hWin = (p.score / rules.winLimit) * 100;
+                    if (rules.ruleType === 'updown') hWin = (p.circles / rules.winLimit) * 100;
+                }
+                if (!['by', 'hitcombo', 'ny', 'freeze', 'backstream', 'swedish', 'attacksurvival', 'divide', 'nxm', 'melonpan', 'luckyshot', 'kobanzame'].includes(rules.ruleType)) {
+                    hLose = (p.crosses / rules.loseLimit) * 100;
+                }
+                if (p.isWinner) hWin = 100;
+                if (p.isLoser) hLose = 100;
+                if (conf.isTimeRace) { hWin = 0; hLose = 0; }
+                hWin = Math.min(100, Math.max(0, hWin)); hLose = Math.min(100, Math.max(0, hLose));
+                // These four track a single life/score value, so the fill bar
+                // covers the whole card width in red instead of the usual
+                // left(○)/right(×) half split.
+                const isFullBarRule = ['attacksurvival', 'freeze', 'by', 'hitcombo', 'ny', 'melonpan', 'kobanzame'].includes(rules.ruleType);
+
+                // ---- stat block (big number + dot row) ----
+                let statHtml = '';
+                if (conf.isPt || ['by', 'backstream', 'attacksurvival', 'divide'].includes(rules.ruleType)) {
+                    const showQ = !(conf.isTimeRace && !rules.showTimeRaceScore);
+                    const neg = p.score < 0 || (rules.ruleType === 'divide' && p.score < 1) || ((rules.ruleType === 'attacksurvival' || rules.ruleType === 'melonpan') && p.score <= 0);
+                    statHtml = `<div class="stat-number ${neg ? 'is-negative' : ''} ${p.volcano ? 'is-combo' : ''}">${showQ ? p.score : '?'}<span class="stat-pt-label">pt</span></div>`;
+                    if (rules.ruleType === 'hitcombo' && p.combo > 1) statHtml += `<div class="stat-sub">🔥${p.combo} COMBO</div>`;
+                    if (rules.ruleType === 'by') statHtml += `<div class="stat-sub">X:${p.circles} × Y:${rules.winLimit - p.crosses}</div>`;
+                    if (['backstream', 'attacksurvival', 'divide'].includes(rules.ruleType)) statHtml += `<div class="stat-sub">〇${p.circles} ×${p.crosses}</div>`;
+                    if (rules.ruleType === 'melonpan') statHtml = statHtml.replace('<span class="stat-pt-label">pt</span>', '<span class="stat-pt-label">LIFE</span>') + `<div class="stat-sub">〇${p.circles} ×${p.crosses}</div>`;
+                    if (rules.ruleType === 'luckyshot') {
+                        const v = (QuizCore.rollFor(rules) || {})[p.id];
+                        statHtml += `<div class="stat-sub">DMG ${p.lsDmg || 0}/${rules.loseLimit}</div>`;
+                        if (v && !p.isWinner && !p.isLoser) statHtml += `<div class="stat-sub lucky-roll"><span style="color:#ffd600">+${v.pt}</span> / <span style="color:#6fa8ff">-${v.dmg}</span></div>`;
+                    }
+                } else if (rules.ruleType === 'tripleseven') {
+                    statHtml = `<div class="stat-sub" style="color:var(--gold); font-size:1.1vw; margin-bottom:2px;">${'★'.repeat(p.setsWon || 0)}${'☆'.repeat(Math.max(0, 3 - (p.setsWon || 0)))}</div>
+                        <div class="stat-number ${p.volcano ? 'is-combo' : ''}">${p.circles}</div>
+                        <div class="dot-row">${Array.from({ length: rules.loseLimit }).map((_, i) => `<div class="dot ${i < p.crosses ? 'filled' : ''}">×</div>`).join('')}</div>`;
+                } else {
+                    const dotCount = Math.max(rules.loseLimit || 0, p.crosses);
+                    const showDots = ['normal', 'swedish', 'nxm', 'updown', 'runrate'].includes(rules.ruleType) && rules.loseLimit > 0 && rules.loseLimit <= 12;
+                    const rrV = rules.ruleType === 'runrate' ? (QuizCore.rollFor(rules) || {})[p.id] : null;
+                    statHtml = (rrV && !p.isWinner && !p.isLoser ? `<div class="stat-sub" style="color:#2fd3b0;font-size:1.4vw">${rrV.rate}%</div>` : '') + `<div class="stat-number ${p.volcano ? 'is-combo' : ''}">${p.circles}</div>` +
+                        (showDots ? `<div class="dot-row">${Array.from({ length: dotCount }).map((_, i) => `<div class="dot ${i < p.crosses ? 'filled' : ''}">×</div>`).join('')}</div>` : (rules.ruleType !== 'normal' ? `<div class="stat-sub">×${p.crosses}</div>` : ''));
+                }
+
+                if (p.isWinner && (p.clinchOrder || p.winOrder)) {
+                    statHtml = `<div class="stat-number stat-rank">${getOrdinal(p.clinchOrder || p.winOrder)}</div><div class="stat-sub stat-rank-sub">WIN</div>`;
+                }
+
+                let statusOverlay = '';
+                if (p.isLoser) statusOverlay = `<div class="status-overlay st-lose">LOSE</div>`;
+                else if (p.freeze > 0) statusOverlay = `<div class="status-overlay st-freeze">FREEZE ${p.freeze}</div>`;
+
+                let eruptionHtml = '';
+                if (p.isWinner && rules.winEruptionEffect !== false && !p.eruptionPlayed) {
+                    let particlesHtml = '';
+                    for (let i = 0; i < 60; i++) {
+                        let dx = (Math.random() - 0.5) * 60; let dy = -40 - Math.random() * 60;
+                        let s = 0.5 + Math.random() * 1.5; let delay = Math.random() * 0.2;
+                        particlesHtml += `<div class="real-spark" style="--dx:${dx}vw; --dy:${dy}vh; --s:${s}; animation-delay:${delay}s;"></div>`;
+                    }
+                    eruptionHtml = `<div class="eruption-container">${particlesHtml}</div>`;
+                    const originalPlayer = players.find(x => x.id === p.id);
+                    if (originalPlayer) { originalPlayer.eruptionPlayed = true; needsSync = true; }
+                }
+
+                // 勝ち抜け/敗退が確定した瞬間にフラグを立てる。実際のSE再生は
+                // 全プレイヤー分のループが終わったあとに1回だけまとめて行うので、
+                // 同時に複数人が敗退/勝ち抜けしてもSEが重複再生されない。
+                if (p.isWinner && !p.winSePlayed) {
+                    newWinnersThisUpdate++;
+                    const ord = p.clinchOrder || p.winOrder;
+                    newWinCut.push(p);
+                    const originalPlayer = players.find(x => x.id === p.id);
+                    if (originalPlayer) { originalPlayer.winSePlayed = true; needsSync = true; }
+                }
+                if (p.isLoser && !p.loseSePlayed) {
+                    newLosersThisUpdate++;
+                    newLoseCut.push(p);
+                    const originalPlayer = players.find(x => x.id === p.id);
+                    if (originalPlayer) { originalPlayer.loseSePlayed = true; needsSync = true; }
+                }
+
+                let isTopClass = (rules.isTopGlow !== false && p._isLiveLeader) ? 'is-top-score' : '';
+                // 敗退した場合も「OUT」ではなく順位の序数(1st/2ndなど)をそのまま表示する。
+                let ribbonLabel = p.winOrder > 0 ? getOrdinal(p.winOrder) : getOrdinal(p.rank);
+                let ribbonTextColor = readableTextColor(p.color);
+
+                return `<div data-pid="${p.id}" class="player-column ${p.isLoser ? 'is-loser' : ''} ${isTopClass}">
+                    <div class="rank-ribbon mono ${p.isLoser ? 'rk-out' : ''}" style="background:${p.color}; color:${ribbonTextColor};${ribbonTextColor === '#111' ? ' text-shadow:none; box-shadow: inset 0 0 0 2px rgba(0,0,0,0.35);' : ''}">${ribbonLabel}</div>
+                    <div class="name-card">
+                        <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+                        <div class="fill-win ${isFullBarRule ? 'full-bar' : ''} ${rules.ruleType === 'ny' ? 'fill-solid-red' : ''}" style="height:${hWin}%"></div>
+                        ${!isFullBarRule ? `<div class="fill-lose" style="height:${hLose}%"></div>` : ''}
+                        ${eruptionHtml}
+                                ${p.volcano ? renderComboIcon(rules) : ''}
+                        <div class="name-container">
+                            <div class="comment-top-box"><div class="c-line-1">${p.c1 || ''}</div><div class="c-line-2">${p.c2 || ''}</div></div>
+                            <div class="name-wrapper"><div class="name-area">${p.name}</div><div class="comment-right">${p.cR || ''}</div></div>
+                            ${statusOverlay}
+                        </div>
+                        <div class="accent-corner al"></div><div class="accent-corner ar"></div>
+                        <div class="accent-line" style="background:${p.color}"></div>
+                    </div>
+                    <div class="stat-block">${statHtml}
+                        ${(!p.isWinner && !p.isLoser && p.freeze <= 0) ? `<div class="control-panel">
+                            <button class="ctrl-btn btn-o" onclick="changeScore(${p.id}, 'o')">〇</button>
+                            <button class="ctrl-btn btn-x" onclick="changeScore(${p.id}, 'x')">×</button>
+                        </div>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+            // 同時に勝ち抜け／敗退した人はまとめて1回のカットインで表示
+            const groupCut = (list, label, bg, cls) => {
+                if (!list.length) return;
+                if (list.length === 1) { const p = list[0]; showReachCutin(p.name, p.color, p.c1, p.c2, label, bg || p.color || '#b8790a', cls); return; }
+                showReachCutin(list.map(p => p.name).join('、'), list[0].color, '', '', label, bg || '#b8790a', cls);
+            };
+            groupCut(newWinCut, '勝ち抜け', newWinCut.length === 1 ? null : '#b8790a', 'cutin-win');
+            groupCut(newLoseCut, '敗退', '#0d1a4a', 'cutin-lose');
+
+            // 同時に複数人分の勝ち抜け/敗退が確定していても、SEはそれぞれ1回だけ鳴らす。
+            // ただしミュート設定中は鳴らさない。
+            if (newWinnersThisUpdate > 0 && !isSeMuted()) playRandomSe(SE_FILES.win);
+            if (newLosersThisUpdate > 0 && !isSeMuted()) playRandomSe(SE_FILES.lose);
+
+            if (needsSync) {
+                QuizCore.mutate((latestPlayers) => {
+                    players.forEach(p => {
+                        const lp = latestPlayers.find(x => x.id === p.id);
+                        if (!lp) return;
+                        if (p.eruptionPlayed) lp.eruptionPlayed = true;
+                        if (p.winSePlayed) lp.winSePlayed = true;
+                        if (p.loseSePlayed) lp.loseSePlayed = true;
+                    });
+                }, { recordHistory: false });
+            }
+        }
+
+        async function changeScore(id, type) {
+            await QuizCore.mutate((players, rules) => { QuizCore.applyAnswer(players, rules, id, type); });
+            update();
+        }
+
+        window.addEventListener('storage', update);
+        window.addEventListener('resize', fitQaText);
+        update();
+    </script>
+    <script src="buzzer.js"></script></body></html>
