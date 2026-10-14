@@ -41,6 +41,91 @@
     }
     function randId(n) { const a = crypto.getRandomValues(new Uint8Array(n)); return Array.from(a, x => 'abcdefghijkmnpqrstuvwxyz23456789'[x % 32]).join(''); }
 
+    // ---------------- レスポンシブ（スマホ・タブレットで見る時だけ） ----------------
+    // 元の表示画面はプロジェクター(16:9)向けに vw/vh で作られているので、
+    // CSS内の vw/vh を var(--rvw)/var(--rvh) に置き換え、端末の画面サイズと人数から
+    // 毎回いちばん大きく見える並べ方（列×段）を計算して値を入れる。
+    function setupResponsive(isTeam) {
+        const root = document.documentElement;
+        root.classList.add('rsp');
+        const SKIP_D = /^\s*(html|body)\s*(,\s*(html|body)\s*)*$|top-strip|strip-pill|head-num|rule-image|qa-banner|q-display|a-display|deliberation|reach-cutin|full-eruption|qr-|remote-|rsp/;
+        const SKIP_T = /^\s*(html|body)\s*(,\s*(html|body)\s*)*$|qr-|remote-|rsp/;
+        const SKIP = isTeam ? SKIP_T : SKIP_D;
+        const RE = /(-?\d*\.?\d+)v([wh])\b/g;
+        const conv = v => v.replace(RE, (m, n, u) => `calc(${n} * var(--rv${u}))`);
+        const done = new WeakSet();
+        function rewrite(rules) {
+            for (const r of Array.from(rules)) {
+                if (r.selectorText && SKIP.test(r.selectorText)) continue;
+                const s = r.style;
+                if (s) for (let i = 0; i < s.length; i++) {
+                    const p = s[i], v = s.getPropertyValue(p);
+                    if (/\dv[wh]\b/.test(v)) s.setProperty(p, conv(v), s.getPropertyPriority(p));
+                }
+                if (r.cssRules) rewrite(r.cssRules);
+            }
+        }
+        function rewriteAll() {
+            for (const sh of Array.from(document.styleSheets)) {
+                if (done.has(sh)) continue;
+                let rules; try { rules = sh.cssRules; } catch (e) { done.add(sh); continue; }
+                if (!rules) continue;
+                done.add(sh); try { rewrite(rules); } catch (e) { }
+            }
+        }
+        let last = '';
+        function setVars(o) {
+            const sig = JSON.stringify(o); if (sig === last) return false; last = sig;
+            for (const k in o) root.style.setProperty('--' + k, k === 'cols' ? String(o[k] | 0) : typeof o[k] === 'number' ? o[k].toFixed(2) + 'px' : o[k]);
+            return true;
+        }
+        function layoutDisplay(W, H, port) {
+            const n = Math.max(1, document.querySelectorAll('#main-screen .player-column').length);
+            const th = Math.round(Math.max(30, Math.min(H * (port ? 0.055 : 0.09), 92)));
+            const qh = Math.round(H * (port ? 0.15 : 0.17)), qm = Math.round(H * 0.012), pb = Math.round(H * 0.015);
+            const gapX = Math.max(4, W * 0.012), gapY = Math.max(6, H * (port ? 0.02 : 0.015));
+            const AW = W * 0.96, AH = H - th - qh - qm - pb;
+            let best = null;
+            for (let c = 1; c <= n; c++) {
+                const r = Math.ceil(n / c);
+                const cw = (AW - gapX * (c - 1)) / c;
+                const top = r > 1 ? cw * 0.2 : 0; // 押し順バッジ等の余白
+                const rh = (AH - gapY * (r - 1)) / r;
+                const u = Math.min(cw, (rh - top) / 4.1, 230);
+                if (!best || u > best.u + 0.5) best = { c, r, cw, rh, u };
+            }
+            const { c, rh, u } = best;
+            const colw = Math.min(best.cw, u * 1.25);
+            const cardh = Math.max(u * 1.2, rh - u * 1.2 - 16 - (best.r > 1 ? best.cw * 0.2 : 0));
+            return { H, th, qh, qm, pb, gapx: gapX, gapy: gapY, cols: c, colw, rowh: rh, cardh, rvw: u / 9.9, rvh: u / 17.6 };
+        }
+        function layoutTeam(W, H, port) {
+            const n = Math.max(1, document.querySelectorAll('#stage .team').length);
+            let u;
+            if (port) u = Math.min(W / (n > 2 ? 58 : 88), H / (16 + (n > 2 ? 64 : 78) * n));
+            else u = Math.min(H / 100, W / 177.8);
+            return { H, rvh: u, rvw: u * 1.778 };
+        }
+        function layout() {
+            const W = window.innerWidth, H = window.innerHeight, port = H > W * 1.05;
+            root.classList.toggle('rsp-port', !!port);
+            rewriteAll();
+            const changed = setVars(isTeam ? layoutTeam(W, H, port) : layoutDisplay(W, H, port));
+            if (changed && typeof window.fitQaText === 'function') { try { window.fitQaText(); } catch (e) { } }
+        }
+        let raf = 0;
+        const schedule = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; layout(); }); };
+        window.addEventListener('resize', schedule);
+        window.addEventListener('orientationchange', () => setTimeout(schedule, 200));
+        new MutationObserver(schedule).observe(document.head, { childList: true });
+        window.addEventListener('DOMContentLoaded', () => {
+            const box = document.getElementById(isTeam ? 'stage' : 'main-screen');
+            if (box) new MutationObserver(schedule).observe(box, { childList: true });
+            layout(); setTimeout(layout, 300);
+        });
+        window.addEventListener('load', schedule);
+    }
+
     // ---------------- スマホ側 ----------------
     if (IS_REMOTE) {
         window.__REMOTE_VIEW = true;
@@ -50,20 +135,35 @@
         ['click', 'pointerdown', 'mousedown', 'touchend', 'dblclick', 'contextmenu', 'keydown', 'keyup'].forEach(t => window.addEventListener(t, block, true));
         const st = document.createElement('style');
         st.textContent = `.control-panel,.hover-ctrl,.qr-overlay{display:none!important}
-            #remote-status{position:fixed;left:6px;bottom:6px;z-index:99999;font:12px sans-serif;color:#9aa;background:rgba(0,0,0,.55);padding:2px 8px;border-radius:8px;pointer-events:none}
-            #remote-rotate{position:fixed;inset:0;z-index:99998;background:#000;color:#fff;display:none;align-items:center;justify-content:center;text-align:center;font:bold 20px sans-serif;line-height:1.7}
-            @media (orientation: portrait){ #remote-rotate{display:flex} }
-            @media (max-height: 700px){
-              .top-strip{height:11vh!important;flex:0 0 11vh!important;padding:0 3vw!important}
-              .strip-pill,#head-num{font-size:6.5vh!important}
-              .rule-image{max-height:8vh!important}
-              .qa-banner{height:17vh!important;min-height:0!important;margin:0 2vw 2vh!important;padding:1.5vh 3vw!important;border-radius:12px!important}
-              .screen{padding-bottom:2vh!important}
-              .name-card{height:46vh!important}
-              .stat-block{min-height:0!important;padding:0.6vh 0!important}
-              .stat-number{font-size:7vh!important}
-            }`;
+            #remote-status{position:fixed;left:6px;bottom:calc(6px + env(safe-area-inset-bottom));z-index:99999;font:12px sans-serif;color:#9aa;background:rgba(0,0,0,.55);padding:2px 8px;border-radius:8px;pointer-events:none;transition:opacity .6s}
+            #remote-status.ok{opacity:0;transition-delay:3s}
+            html.rsp,html.rsp body{height:var(--H)!important;min-height:0!important;overflow:hidden!important}
+            html.rsp body{width:100vw;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+            /* ---- 個人戦 ---- */
+            html.rsp .top-strip{height:var(--th)!important;flex:0 0 var(--th)!important;padding:0 3vw!important}
+            html.rsp .top-strip .strip-pill,html.rsp #head-num{font-size:calc(var(--th) * .6)!important;gap:calc(var(--th) * .25)!important}
+            html.rsp .rule-image{max-height:calc(var(--th) * .75)!important}
+            html.rsp .qa-banner{height:var(--qh)!important;min-height:0!important;max-height:none!important;margin:0 2vw var(--qm)!important;padding:calc(var(--qh) * .08) 3vw!important;border-radius:12px!important;gap:3vw!important}
+            html.rsp.rsp-port .qa-banner{flex-direction:column;align-items:stretch;justify-content:center;gap:4px!important}
+            html.rsp.rsp-port .q-display,html.rsp.rsp-port .a-display{flex:0 1 auto!important}
+            html.rsp #deliberation-text{font-size:calc(var(--qh) * .3)!important}
+            html.rsp .screen{display:grid!important;grid-template-columns:repeat(var(--cols),var(--colw));grid-auto-rows:var(--rowh);justify-content:center;align-content:center;align-items:end;padding:0 2vw var(--pb)!important;gap:var(--gapy) var(--gapx)!important;width:100vw!important}
+            html.rsp .player-column{max-width:none!important;width:100%!important;height:100%!important;margin:0!important}
+            html.rsp .name-card{height:var(--cardh)!important;max-height:none!important}
+            html.rsp .mp-banner{top:calc(var(--th) + 4px)!important}
+            html.rsp.rsp-port .reach-cutin-school{font-size:min(4.5vw,3vh)!important}
+            html.rsp.rsp-port .reach-cutin-name:not([style*="font-size"]){font-size:min(11vw,8vh)!important}
+            html.rsp.rsp-port .reach-cutin-label{font-size:min(15vw,10vh)!important;-webkit-text-stroke-width:2px!important}
+            /* ---- チーム戦 ---- */
+            html.rsp.rsp-port #stage{flex-direction:column!important;justify-content:center!important}
+            html.rsp.rsp-port #stage .team{flex:0 0 auto!important}`;
         document.head.appendChild(st);
+        if (!document.querySelector('meta[name=viewport]')) {
+            const mv = document.createElement('meta'); mv.name = 'viewport';
+            mv.content = 'width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover';
+            document.head.appendChild(mv);
+        }
+        setupResponsive(/team-display/.test(PAGE));
 
         const myKind = /team-display/.test(PAGE) ? 'team' : 'display';
         function gotoKind(kind) {
@@ -91,7 +191,7 @@
                 try { window.dispatchEvent(new StorageEvent('storage', { key: k, oldValue: o, newValue: n })); } catch (e) { }
             }
         }
-        function setStatus(t) { const el = document.getElementById('remote-status'); if (el) el.textContent = t; }
+        function setStatus(t) { const el = document.getElementById('remote-status'); if (el) { el.textContent = t; el.classList.toggle('ok', t.startsWith('●')); } }
 
         function connectLan() {
             const es = new EventSource('/api/events');
@@ -120,7 +220,6 @@
         }
         window.addEventListener('DOMContentLoaded', () => {
             const s = document.createElement('div'); s.id = 'remote-status'; s.textContent = '接続中…'; document.body.appendChild(s);
-            const r = document.createElement('div'); r.id = 'remote-rotate'; r.innerHTML = '📱↻<br>スマホを横向きにしてください'; document.body.appendChild(r);
             if (IS_LAN_REMOTE) connectLan(); else connectCloud();
         });
         return;
