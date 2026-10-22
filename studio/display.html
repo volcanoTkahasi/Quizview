@@ -253,9 +253,10 @@ html body, html body *, html body .name-area, html body .comment-top-box, html b
     <script>
     // スマホで見る時（?remote=1 / ?cloud=1）に「スマホ表示のデザイン」が縦札・3Dなら試合配信画面のデザインへ
     (function () {
-        if (!/[?&](remote|cloud)=1/.test(location.search)) return;
+        if (!/[?&](remote|cloud)=1/.test(location.search) || /[?&]nophone=1/.test(location.search)) return;
         const chk = () => { let r = {}; try { r = JSON.parse(localStorage.getItem('quiz_rules')) || {}; } catch (e) { }
-            if (r.phoneDesign === 'plate' || r.phoneDesign === '3d') location.replace('match.html' + location.search + (location.search ? '&' : '?') + 'phone=1' + location.hash); };
+            const d = r.phoneDesign; const pg = d === 'stream' ? 'bracket.html' : ['plate', '3d', 'match'].includes(d) ? 'match.html' : '';
+            if (pg) location.replace(pg + location.search + (location.search ? '&' : '?') + 'phone=1' + location.hash); };
         addEventListener('storage', e => { if (!e.key || e.key === 'quiz_rules') chk(); }); chk();
     })();
     </script>
