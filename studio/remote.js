@@ -176,7 +176,7 @@
             mv.content = 'width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover';
             document.head.appendChild(mv);
         }
-        if (PAGE !== 'match.html') setupResponsive(/team-display/.test(PAGE));
+        if (PAGE !== 'match.html' && PAGE !== 'bracket.html') setupResponsive(/team-display/.test(PAGE));
 
         const myKind = /team-display/.test(PAGE) ? 'team' : 'display';
         function gotoKind(kind) {
