@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>配信画面 - クイズ大会スタジオ</title>
+<style>
+@font-face{font-family:'Agency FB';src:url('../fonts/AGENCYB.TTF'),local('Agency FB Bold');font-weight:100 900;unicode-range:U+0020-007E}
+@font-face{font-family:'BIZ UDPGothic';src:local('BIZ UDPGothic Bold'),local('BIZ UDPゴシック Bold'),url('../fonts/BIZUDPGothic-Bold.ttf');font-weight:100 900}
+:root{--gold:#ffb020;--teal:#2fae8b;--text:#f2f4f8;--muted:#8a8f9a;--card:rgba(10,12,16,.88);--line:rgba(255,255,255,.14);--red:#e6393f}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--text);font-family:'Agency FB','BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif}
+body.bg-transparent{background:transparent}
+body.bg-green{background:#00b140}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0}
+.view{position:absolute;inset:0;padding:40px 56px;display:flex;flex-direction:column;animation:fadein .45s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.title{display:flex;align-items:baseline;gap:28px;margin-bottom:22px}
+.title .t1{font-size:64px;font-weight:900;color:var(--gold);letter-spacing:2px;text-shadow:0 0 18px rgba(255,176,32,.35)}
+.title .t2{font-size:34px;color:#fff;opacity:.85}
+.title .t3{margin-left:auto;font-size:28px;color:var(--muted)}
+/* ---- 勝ち抜け表 ---- */
+.bk{flex:1;display:flex;gap:26px;min-height:0}
+.bcol{flex:1;display:flex;flex-direction:column;min-width:0}
+.bcol .rh{font-size:32px;font-weight:900;text-align:center;color:var(--gold);padding-bottom:8px;border-bottom:3px solid var(--gold);margin-bottom:10px}
+.bcol .rh small{display:block;font-size:20px;color:var(--muted);font-weight:700}
+.bcol .gs{flex:1;display:flex;flex-direction:column;justify-content:space-around;gap:var(--gap,10px)}
+.g{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.5)}
+.g.playing{border-color:var(--gold);box-shadow:0 0 0 3px rgba(255,176,32,.6),0 0 30px rgba(255,176,32,.35);animation:pulse 1.6s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 3px rgba(255,176,32,.25),0 0 10px rgba(255,176,32,.15)}}
+.g .gn{font-size:calc(var(--lh,36px)*.62);font-weight:900;padding:2px 12px;background:rgba(255,255,255,.08);display:flex;justify-content:space-between}
+.g .gn .now{color:var(--gold)}
+.g .gn .gr{margin-left:.6em;font-size:.72em;color:var(--teal);font-weight:800}
+.m{display:flex;align-items:center;gap:10px;height:var(--lh,36px);padding:0 12px;font-size:calc(var(--lh,36px)*.62);font-weight:800;border-top:1px solid rgba(255,255,255,.06);white-space:nowrap}
+.m .bar{width:7px;align-self:stretch;margin:5px 0;border-radius:2px}
+.m .n{flex:1;overflow:hidden;text-overflow:ellipsis}
+.m .rk{font-size:.8em;color:var(--muted);min-width:2.6em;text-align:right}
+.m.adv{background:linear-gradient(90deg,rgba(255,176,32,.32),rgba(255,176,32,.06))}
+.m.adv .n{color:#fff}.m.adv .rk{color:var(--gold)}
+.m.out{opacity:.38}
+.m.empty .n{color:var(--muted);font-weight:600}
+/* ---- 組合せ（1ラウンド） ---- */
+.rg{flex:1;display:grid;grid-template-columns:repeat(var(--cols,4),1fr);gap:22px;align-content:center}
+.rg .g .gn{font-size:38px;padding:8px 18px}
+.rg .m{height:var(--lh2,60px);font-size:calc(var(--lh2,60px)*.55);padding:0 18px}
+.rg .m small{font-size:.6em;color:var(--muted);margin-left:10px;font-weight:700}
+/* ---- 対戦カード ---- */
+.vs{flex:1;display:flex;align-items:flex-end;justify-content:center;gap:22px;padding-bottom:40px}
+.card{flex:1;max-width:300px;height:640px;background:var(--card);border-radius:8px;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;box-shadow:0 10px 30px rgba(0,0,0,.6);animation:rise .6s cubic-bezier(.2,.9,.3,1.2) backwards}
+@keyframes rise{from{transform:translateY(120px);opacity:0}}
+.card .top{width:100%;height:26px}
+.card .aff{text-orientation:upright;margin-top:26px;font-size:30px;color:var(--gold);font-weight:800;writing-mode:vertical-rl;max-height:200px;overflow:hidden}
+.card .nm{flex:1;writing-mode:vertical-rl;text-orientation:upright;font-size:76px;font-weight:900;letter-spacing:6px;padding:20px 0;overflow:hidden;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.card .info{font-size:28px;color:var(--muted);padding:10px 0 16px}
+.card .badge{position:absolute;left:0;right:0;bottom:0;padding:12px;text-align:center;font-size:44px;font-weight:900;background:var(--gold);color:#111}
+.card.out{filter:grayscale(.8) brightness(.55)}
+/* ---- 優勝 ---- */
+.champ{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.champ .c1{font-size:90px;color:var(--gold);font-weight:900;letter-spacing:12px;text-shadow:0 0 40px rgba(255,176,32,.6);animation:pop .8s cubic-bezier(.2,1.6,.4,1) backwards}
+.champ .c2{font-size:170px;font-weight:900;margin:20px 0;animation:pop .9s .25s cubic-bezier(.2,1.6,.4,1) backwards;text-shadow:0 6px 30px rgba(0,0,0,.7)}
+.champ .c3{font-size:48px;color:#ddd;animation:fadein 1s .6s backwards}
+@keyframes pop{from{transform:scale(.3);opacity:0}}
+.champ .wa{margin-top:44px;padding:22px 60px;border-top:3px solid var(--gold);border-bottom:3px solid var(--gold);max-width:1500px;animation:fadein 1s 1.2s backwards}
+.champ .wl{font-size:34px;color:var(--gold);font-weight:900;letter-spacing:8px}
+.champ .wl span{margin-left:24px;font-size:28px;color:#bbb;letter-spacing:2px}
+.champ .wt{font-size:84px;font-weight:900;margin-top:6px}
+.champ .wq{font-size:28px;color:#ccc;margin-top:10px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* ---- 一覧 ---- */
+.lst{flex:1;display:grid;grid-auto-flow:column;grid-template-rows:repeat(var(--rows,16),1fr);grid-template-columns:repeat(var(--cols,2),1fr);gap:6px 30px}
+.li{display:flex;align-items:center;gap:16px;background:var(--card);border-radius:6px;padding:0 18px;font-size:var(--fs,34px);font-weight:800;white-space:nowrap;overflow:hidden}
+.li .no{color:var(--gold);min-width:2.4em;text-align:right}
+.li .nn{flex:1;overflow:hidden;text-overflow:ellipsis}
+.li .sub{color:var(--muted);font-size:.7em}
+.li.top{background:linear-gradient(90deg,rgba(255,176,32,.35),var(--card))}
+.empty-msg{flex:1;display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--muted)}
+.rp{flex:1;display:flex;gap:34px;min-height:0}
+.rp .ord{width:620px;display:flex;flex-direction:column;gap:6px}
+.rp .oi{flex:1;max-height:62px;display:flex;align-items:center;gap:14px;background:var(--card);border-radius:6px;padding:0 16px;font-size:var(--ofs,30px);font-weight:800;white-space:nowrap;overflow:hidden;border:2px solid transparent}
+.rp .oi .no{color:var(--gold);min-width:1.6em;text-align:right}
+.rp .oi .nn{flex:1;overflow:hidden;text-overflow:ellipsis}
+.rp .oi .ch{font-size:.72em;color:#111;background:var(--teal);border-radius:5px;padding:2px 10px}
+.rp .oi.done{opacity:.55}
+.rp .oi.nx{border-color:var(--gold);background:linear-gradient(90deg,rgba(255,176,32,.35),var(--card));animation:pulse 1.6s infinite}
+.rp .oi.nx .ch{background:var(--gold)}
+.rp .gg{flex:1;display:grid;grid-template-columns:repeat(var(--cols,2),1fr);gap:24px;align-content:stretch}
+.rp .gb{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.rp .gb .gh{padding:12px 20px;background:rgba(255,255,255,.08);display:flex;align-items:baseline;gap:16px}
+.rp .gb .gh{white-space:nowrap}
+.rp .gb .gh .rl{font-size:50px;font-weight:900;color:var(--gold);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.rp .gb .gh .gnm,.rp .gb .gh .ct{flex-shrink:0}
+.rp .gb .gh .gnm{font-size:28px;color:#ddd;font-weight:800}
+.rp .gb .gh .ct{margin-left:auto;font-size:30px;color:var(--muted);font-weight:800}
+.rp .gb .sl{flex:1;display:flex;flex-direction:column;justify-content:flex-start}
+.rp .gb .s{height:var(--sh,58px);display:flex;align-items:center;gap:14px;padding:0 20px;font-size:calc(var(--sh,58px)*.56);font-weight:800;border-top:1px solid rgba(255,255,255,.06);white-space:nowrap;overflow:hidden}
+.rp .gb .s small{font-size:.6em;color:var(--muted)}
+.rp .gb .s.em{color:#444}
+.rp .gb .s.new{animation:fadein .6s ease}
+#rs{position:fixed;right:8px;bottom:6px;font:12px sans-serif;color:#888}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="rs"></div>
+<script>if (/[?&]cloud=1/.test(location.search)) document.write('<script src="../mqtt.min.js"><\/script><script src="remote.js"><\/script>');</script>
+<script src="tournament-core.js"></script>
+<script src="intro3d.js"></script>
+<script>
+const TC = window.TournamentCore;
+const Q = new URLSearchParams(location.search);
+const REMOTE = Q.get('remote') === '1';
+const TEAM = Q.get('team') === '1';
+if (TEAM) TC.setKey(TC.TEAM_KEY);
+const VIEW_KEY = TEAM ? 'qt_view_team' : 'qt_view';
+const U = TEAM ? 'チーム' : '人';
+document.body.classList.add('bg-' + (Q.get('bg') || 'dark'));
+const store = {}; // remote 用
+const get = k => REMOTE ? (store[k] == null ? null : store[k]) : localStorage.getItem(k);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const stage = document.getElementById('stage');
+
+function fit() { const s = Math.min(innerWidth / 1920, innerHeight / 1080); stage.style.transform = `translate(${(innerWidth - 1920 * s) / 2}px,${(innerHeight - 1080 * s) / 2}px) scale(${s})`; }
+addEventListener('resize', fit); fit();
+
+function data() {
+  let T; try { T = JSON.parse(get(TC.KEY)); } catch (e) { }
+  if (!T || !Array.isArray(T.entries)) T = TC.blank(); else TC.ensure(T);
+  let v = null;
+  if (Q.get('view')) v = { view: Q.get('view'), ri: Q.has('r') ? Number(Q.get('r')) : null };
+  else { try { v = JSON.parse(get(VIEW_KEY)); } catch (e) { } }
+  let players = []; try { players = TEAM ? (JSON.parse(get('eq_teams')) || []).map(t => ({ tmt: t.tmt, winOrder: t.isFinished ? t.rank : 0 })) : JSON.parse(get('quiz_players')) || []; } catch (e) { }
+  return { T, v: v || { view: 'bracket' }, players };
+}
+function header(T, sub, right) {
+  return `<div class="title"><span class="t1">${esc(T.name || '')}</span><span class="t2">${esc(sub || '')}</span><span class="t3">${esc(right || T.date || '')}</span></div>`;
+}
+const memRow = (T, r, g, id, k) => {
+  const e = T.entries.find(x => x.id === id); if (!e) return '';
+  const res = (g.res || {})[id] || {}; const adv = TC.isAdv(g, id, r.advance);
+  const cls = adv ? 'adv' : g.status === 'done' ? 'out' : '';
+  return `<div class="m ${cls}"><span class="bar" style="background:${TC.colorFor(k)}"></span><span class="n">${esc(e.name)}</span><span class="rk">${res.rank ? res.rank + (adv ? '抜' : '位') : adv ? '抜' : ''}</span></div>`;
+};
+
+function vBracket(T) {
+  if (!T.rounds.length) return `<div class="view">${header(T, '勝ち抜け表')}<div class="empty-msg">ラウンドが設定されていません</div></div>`;
+  // 一番行数の多い列に合わせて1行の高さを決める
+  let maxLines = 1, maxGroups = 1;
+  const cols = T.rounds.map((r, ri) => {
+    let groups = r.groups;
+    if (!groups.length) { // 未作成のラウンドは枠だけ
+      const PP = TC.participants(T, ri);
+      const P = ri === 0 ? PP.ordered.length : PP.seeds.length + T.rounds[ri - 1].groupCount * T.rounds[ri - 1].advance;
+      const per = Math.max(r.advance || 1, Math.ceil((P || r.groupCount * Math.max(2, r.advance + 1)) / r.groupCount));
+      groups = Array.from({ length: r.groupCount }, (_, i) => ({ name: r.groupCount === 1 ? r.name : `${r.name}-${i + 1}`, members: Array(per).fill(null), res: {}, status: 'pending' }));
+    }
+    const lines = groups.reduce((s, g) => s + g.members.length + 1, 0);
+    maxLines = Math.max(maxLines, lines); maxGroups = Math.max(maxGroups, groups.length);
+    return { r, groups };
+  });
+  const avail = 1080 - 80 - 120 - 60 - maxGroups * 8;
+  const lh = Math.max(16, Math.min(46, Math.floor(avail / maxLines)));
+  let h = `<div class="view" style="--lh:${lh}px;--gap:${Math.max(4, Math.min(16, lh / 3))}px">${header(T, '勝ち抜け表')}<div class="bk">`;
+  cols.forEach(({ r, groups }) => {
+    h += `<div class="bcol"><div class="rh">${esc(r.name)}<small>${r.rules.length === 1 ? esc(TC.ruleLabel(r.rules[0])) + '・' : ''}${r.advance}${U}抜け</small></div><div class="gs">`;
+    groups.forEach(g => {
+      const gl = r.rules.length > 1 && g.ruleId ? '<span class="gr">' + esc(TC.ruleLabel(TC.groupRule(r, g))) + '</span>' : '';
+      h += `<div class="g ${g.status === 'playing' ? 'playing' : ''}"><div class="gn"><span>${esc(g.name)}${gl}</span>${g.status === 'playing' ? '<span class="now">NOW</span>' : ''}</div>`;
+      g.members.forEach((id, k) => { h += id ? memRow(T, r, g, id, k) : `<div class="m empty"><span class="bar" style="background:#333"></span><span class="n">―</span><span class="rk"></span></div>`; });
+      h += '</div>';
+    });
+    h += '</div></div>';
+  });
+  return h + '</div></div>';
+}
+function vRound(T, ri) {
+  const r = T.rounds[ri];
+  if (!r) return vBracket(T);
+  if (!r.groups.length) return `<div class="view">${header(T, r.name + ' 組合せ')}<div class="empty-msg">組合せはまだ発表されていません</div></div>`;
+  const n = r.groups.length, cols = n <= 4 ? n : n <= 8 ? Math.ceil(n / 2) : Math.ceil(n / 3);
+  const rows = Math.ceil(n / cols), maxM = Math.max(...r.groups.map(g => g.members.length), 1);
+  const lh2 = Math.max(26, Math.min(76, Math.floor((1080 - 200 - rows * 80) / (rows * maxM))));
+  let h = `<div class="view" style="--cols:${cols};--lh2:${lh2}px">${header(T, r.name + ' 組合せ', (r.rules.length === 1 ? TC.ruleLabel(r.rules[0]) + '　' : '') + '各組' + r.advance + U + '勝ち抜け')}<div class="rg">`;
+  r.groups.forEach(g => {
+    const gl = r.rules.length > 1 ? '<span class="gr">' + esc(TC.ruleLabel(TC.groupRule(r, g))) + '</span>' : '';
+    h += `<div class="g ${g.status === 'playing' ? 'playing' : ''}"><div class="gn"><span>${esc(g.name)}${gl}</span>${g.status === 'playing' ? '<span class="now">NOW</span>' : ''}</div>`;
+    g.members.forEach((id, k) => {
+      const e = T.entries.find(x => x.id === id); if (!e) return;
+      const adv = TC.isAdv(g, id, r.advance), res = (g.res || {})[id] || {};
+      h += `<div class="m ${adv ? 'adv' : g.status === 'done' ? 'out' : ''}"><span class="bar" style="background:${TC.colorFor(k)}"></span><span class="n">${esc(e.name)}<small>${esc(e.affiliation)}</small></span><span class="rk">${res.rank ? res.rank + (adv ? '抜' : '位') : ''}</span></div>`;
+    });
+    h += '</div>';
+  });
+  return h + '</div></div>';
+}
+function vMatch(T, v, players) {
+  let ri = v.ri, g = null;
+  const gid = v.gid || (T.current && T.current.gid);
+  T.rounds.forEach((r, i) => r.groups.forEach(x => { if (x.id === gid) { g = x; ri = i; } }));
+  if (!g) return `<div class="view">${header(T, '')}<div class="empty-msg">試合中の組はありません</div></div>`;
+  const r = T.rounds[ri];
+  const live = Object.fromEntries(players.filter(p => p.tmt && p.tmt.gid === g.id).map(p => [p.tmt.eid, p]));
+  let h = `<div class="view">${header(T, g.name, TC.ruleLabel(TC.groupRule(r, g)) + '　' + r.advance + U + '勝ち抜け')}<div class="vs">`;
+  g.members.forEach((id, k) => {
+    const e = T.entries.find(x => x.id === id); if (!e) return;
+    const adv = TC.isAdv(g, id, r.advance), lp = live[id];
+    const won = adv || (lp && lp.winOrder);
+    h += `<div class="card ${g.status === 'done' && !adv ? 'out' : ''}" style="animation-delay:${k * 0.08}s"><div class="top" style="background:${TC.colorFor(k)}"></div>
+      <div class="aff">${esc(e.affiliation)}</div><div class="nm">${esc(e.name)}</div>
+      <div class="info">${TEAM ? esc((e.members || '').split(/[\/／、,]/).join('・')) : esc(/^\d+$/.test(e.grade||'') ? e.grade + '年' : e.grade)}${e.paper != null ? '　P' + e.paper : ''}</div>
+      ${won ? `<div class="badge">${lp && lp.winOrder ? ['', '1st', '2nd', '3rd'][lp.winOrder] || lp.winOrder + 'th' : 'WIN'}</div>` : ''}</div>`;
+  });
+  return h + '</div></div>';
+}
+function vChampion(T) {
+  const r = T.rounds[T.rounds.length - 1];
+  const g = r && r.groups.length === 1 ? r.groups[0] : null;
+  const id = g && g.status === 'done' ? TC.advancers(r, g)[0] : null;
+  const e = id && T.entries.find(x => x.id === id);
+  if (!e) return `<div class="view">${header(T, '')}<div class="empty-msg">優勝者はまだ決まっていません</div></div>`;
+  return `<div class="view"><div class="champ"><div class="c1">CHAMPION</div><div class="c2">${esc(e.name)}</div><div class="c3">${esc(e.affiliation)}${e.grade ? '　' + esc(e.grade) : ''}</div><div class="c3" style="margin-top:30px;color:var(--gold)">${esc(T.name || '')} 優勝</div>${winAns(T, id)}</div></div>`;
+}
+function winAns(T, id) {
+  const w = T.champ && T.champ.eid === id ? T.champ : null; if (!w || !(w.aText || w.qText)) return '';
+  return `<div class="wa"><div class="wl">WINNING ANSWER${w.q ? `<span>Q${esc(w.q)}</span>` : ''}</div>${w.aText ? `<div class="wt">${esc(w.aText)}</div>` : ''}${w.qText ? `<div class="wq">${esc(w.qText)}</div>` : ''}</div>`;
+}
+function vList(T, title, items) {
+  if (!items.length) return `<div class="view">${header(T, title)}<div class="empty-msg">まだありません</div></div>`;
+  const cols = items.length <= 16 ? 1 : items.length <= 32 ? 2 : items.length <= 60 ? 3 : 4;
+  const rows = Math.ceil(items.length / cols);
+  const fs = Math.max(16, Math.min(40, Math.floor((1080 - 220) / rows * 0.6)));
+  return `<div class="view" style="--cols:${cols};--rows:${rows};--fs:${fs}px">${header(T, title, items.length + U)}<div class="lst">` +
+    items.map(x => `<div class="li ${x.top ? 'top' : ''}"><span class="no">${esc(x.no)}</span><span class="nn">${esc(x.name)}</span><span class="sub">${esc(x.sub)}</span></div>`).join('') + '</div></div>';
+}
+function vRulepick(T, ri) {
+  const r = T.rounds[ri];
+  if (!r || !r.pick) return `<div class="view">${header(T, r ? r.name + ' ルール決め' : 'ルール決め')}<div class="empty-msg">ルール決めはまだ始まっていません</div></div>`;
+  const E = id => T.entries.find(e => e.id === id);
+  const cap = TC.capacity(r), order = r.pick.order;
+  const next = order.find(id => !TC.pickedGroup(r, id));
+  const decided = order.length - order.filter(id => !TC.pickedGroup(r, id)).length;
+  const ofs = Math.max(18, Math.min(30, Math.floor(900 / Math.max(order.length, 1) * .5)));
+  let h = `<div class="view">${header(T, r.name + ' ルール決め', `決定 ${decided} / ${order.length}人`)}<div class="rp"><div class="ord" style="--ofs:${ofs}px">`;
+  order.forEach((id, k) => {
+    const e = E(id); if (!e) return; const g = TC.pickedGroup(r, id);
+    h += `<div class="oi ${g ? 'done' : id === next ? 'nx' : ''}"><span class="no">${k + 1}</span><span class="nn">${esc(e.name)}</span>${g ? `<span class="ch">${esc(TC.ruleLabel(TC.groupRule(r, g)))}</span>` : id === next ? '<span class="ch">選択中…</span>' : ''}</div>`;
+  });
+  const cols = r.groups.length <= 2 ? r.groups.length : r.groups.length <= 4 ? 2 : 3;
+  const rows = Math.ceil(r.groups.length / cols);
+  const sh = Math.max(34, Math.min(66, Math.floor((900 / rows - 90) / Math.max(cap, 1))));
+  h += `</div><div class="gg" style="--cols:${cols};--sh:${sh}px">`;
+  r.groups.forEach(g => {
+    h += `<div class="gb"><div class="gh"><span class="rl">${esc(TC.ruleLabel(TC.groupRule(r, g)))}</span><span class="gnm">${esc(g.name)}</span><span class="ct">${g.members.length} / ${cap}</span></div><div class="sl">`;
+    for (let i = 0; i < cap; i++) {
+      const e = E(g.members[i]);
+      h += e ? `<div class="s"><span>${esc(e.name)}</span><small>${esc(e.affiliation)}</small></div>` : '<div class="s em">―</div>';
+    }
+    h += '</div></div>';
+  });
+  return h + '</div></div></div>';
+}
+// スマホ（?phone=1）：「スマホ表示」が配信画面以外になったら表示画面へ戻す
+function phoneCheck() {
+  if (Q.get('phone') !== '1') return false;
+  let r = {}; try { r = JSON.parse(get('quiz_rules')) || {}; } catch (e) { }
+  if (r.phoneDesign === 'stream' || !get('quiz_rules')) return false;
+  location.replace('display.html' + location.search.replace(/[?&]phone=1/, '').replace(/^&/, '?') + location.hash); return true;
+}
+function render() {
+  if (phoneCheck()) return;
+  const { T, v, players } = data();
+  let h;
+  switch (v.view) {
+    case 'round': h = vRound(T, v.ri == null ? (T.current ? T.current.ri : 0) : v.ri); break;
+    case 'match': h = vMatch(T, v, players); break;
+    case 'champion': h = vChampion(T); break;
+    case 'entries': h = vList(T, 'エントリー一覧', T.entries.filter(e => !e.withdrawn).map((e, i) => ({ no: i + 1, name: e.name, sub: e.affiliation }))); break;
+    case 'paper': { const pr = TC.paperRanks(T); h = vList(T, 'ペーパー順位', T.entries.filter(e => pr[e.id]).sort((a, b) => pr[a.id] - pr[b.id]).map(e => ({ no: pr[e.id], name: e.name, sub: e.paper + '点', top: e.startRound > 0 }))); break; }
+    case 'standings': h = vList(T, '最終順位', TC.standings(T).map((x, i) => { const e = T.entries.find(y => y.id === x.id); return { no: i + 1, name: e.name, sub: e.affiliation, top: i < 3 }; })); break;
+    case 'rulepick': h = vRulepick(T, v.ri == null ? 0 : v.ri); break;
+    case 'blank': h = ''; break;
+    case 'intro': case 'live': h = liveFrame(); break;
+    default: h = vBracket(T);
+  }
+  if (h !== render.last) { stage.innerHTML = h; render.last = h; }
+}
+// 試合画面（選手紹介のあとに映る）
+function liveFrame() {
+  const src = TEAM ? 'team-display.html' + (REMOTE ? '?remote=1' : '') : 'match.html?nointro=1' + (REMOTE ? '&remote=1' : '') + (Q.get('bg') ? '&bg=' + encodeURIComponent(Q.get('bg')) : '');
+  return `<iframe src="${src}" style="position:absolute;inset:0;width:1920px;height:1080px;border:0;background:transparent"></iframe>`;
+}
+let pend = 0; const schedule = () => { if (!pend) pend = setTimeout(() => { pend = 0; render(); }, 16); };
+if (REMOTE) {
+  const rs = document.getElementById('rs');
+  const es = new EventSource('/api/events');
+  es.onmessage = ev => {
+    try {
+      const m = JSON.parse(ev.data);
+      if (m.full) for (const k in store) delete store[k];
+      for (const k in m.data) { if (m.data[k] == null) delete store[k]; else store[k] = m.data[k]; }
+      rs.textContent = ''; schedule();
+    } catch (e) { }
+  };
+  es.onerror = () => { rs.textContent = '再接続中…'; };
+} else {
+  addEventListener('storage', e => { if (e.key === TC.KEY || e.key === VIEW_KEY || e.key === 'quiz_players' || e.key === 'eq_teams' || e.key === 'quiz_rules') schedule(); });
+}
+render();
+// 選手紹介（3D）：配信画面が「選手紹介」のときだけ重ねる。終わると下の試合画面が見える
+const INTRO = QTIntro.create({ get, key: TEAM ? 'qt_intro_team' : 'qt_intro', accept: (T, I) => { const v = data().v; return v.view === 'intro' && (!v.gid || v.gid === I.gid); } });
+</script>
+</body>
+</html>
