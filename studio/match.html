@@ -50,7 +50,7 @@ body.bg-transparent #stage{background:transparent}
 .pc .nm{display:flex;flex-direction:column;justify-content:space-between;align-items:center;font-size:var(--nfs,70px);font-weight:900;line-height:1}
 .pc .nm span{writing-mode:vertical-rl;text-orientation:upright;letter-spacing:.02em;white-space:nowrap}
 .pc .nm.one{justify-content:flex-start}
-.pc .af{writing-mode:vertical-rl;text-orientation:upright;font-size:var(--afs,26px);font-weight:900;white-space:nowrap;overflow:hidden;max-height:100%;--sw:5px;padding-top:calc(var(--pw) * .02)}
+.pc .af{writing-mode:vertical-rl;text-orientation:upright;font-size:var(--afs,26px);font-weight:900;white-space:nowrap;overflow:hidden;max-height:100%;letter-spacing:.2em;--sw:5px;padding-top:calc(var(--pw) * .02)}
 
 /* ---------- 得点 ---------- */
 .st{position:absolute;left:40px;right:40px;top:915px;height:100px;display:flex;justify-content:center;gap:var(--gap,20px)}
@@ -106,7 +106,7 @@ body.bg-transparent #stage{background:transparent}
 .cube .nm3{display:flex;flex-direction:column;justify-content:space-between;align-items:center;font-size:var(--nfs);font-weight:900;line-height:1.02;color:#fff;-webkit-text-stroke:calc(var(--nfs) * .13) #111;paint-order:stroke fill}
 .cube .nm3.one{justify-content:flex-start}
 .cube .nm3 span{writing-mode:vertical-rl;text-orientation:upright;white-space:nowrap;letter-spacing:.14em}
-.cube .af3{writing-mode:vertical-rl;text-orientation:upright;font-size:var(--afs);font-weight:900;white-space:nowrap;overflow:hidden;max-height:100%;color:#fff;-webkit-text-stroke:calc(var(--afs) * .2) #111;paint-order:stroke fill}
+.cube .af3{writing-mode:vertical-rl;text-orientation:upright;letter-spacing:.22em;font-size:var(--afs);font-weight:900;white-space:nowrap;overflow:hidden;max-height:100%;color:#fff;-webkit-text-stroke:calc(var(--afs) * .2) #111;paint-order:stroke fill}
 .bx.lose .nm3,.bx.lose .af3{color:#8d8f92}
 .cube .f .life{position:absolute;inset:0;display:flex;flex-direction:column-reverse;gap:3px;padding:3px;opacity:.55}
 .cube .f .life i{flex:1;background:var(--lc,#36c443)}.cube .f .life i.e{background:transparent}
@@ -430,7 +430,7 @@ function render3D(st) {
     const totalLen = [...name.replace(/[\s　]/g, '')].length;
     const avail = bh * .8;
     const nfs = Math.round(Math.min(bw * .5, avail / Math.max((parts.length > 1 ? totalLen + .6 : totalLen) * 1.14, 2)));
-    const afs = Math.round(Math.min(bw * .17, avail / Math.max([...aff].length, 1)));
+    const afs = Math.round(Math.min(bw * .17, avail / Math.max([...aff].length * 1.22, 1)));
     const AS = rules.ruleType === 'attacksurvival' && !s.isWinner && !s.isLoser ? lifeFx(p.id, s.score, Math.max(1, rules.winLimit), now) : null;
     const ev = evFx(p.id, cls, now);
     const k = order.indexOf(p.id);
